@@ -55,13 +55,12 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="note">📌 沐藏採全預約制，請至少提前一日預約。所有訂位須預付訂金保留席次，每位 $1,000。<br>・訂位日隔日起 3 日內完成付款<br>・訂金入帳確認後，才正式保留席次<br>・逾期未付款且未聯繫者，將釋出席次<br>訂位、取消及延期規範：<a href="https://www.instagram.com/p/DeWsdK3D-Eb/" target="_blank" rel="noopener">點此查看</a></div>
     <button class="btn line" id="paybtn">LINE Pay 支付訂金</button>
     <button class="btn ghost" id="oabtn">傳送訂位資料至官方 LINE</button>
-    <div class="note" style="margin-top:10px">流程：①傳送訂位資料至官方 LINE → ②店家確認 → ③以 LINE Pay 付訂金 → 訂位完成。<br><br>*沐藏料理所 ｜ 每週一固定公休，每週二彈性公休<br>預約專線：<a href="tel:0983629986">0983-629-986</a></div>
+    <div class="note" style="margin-top:10px">流程：填寫資料 → 按「LINE Pay 支付訂金」→ 付款完成，席位即保留。如需洽詢，可先傳送訂位資料至官方 LINE。<br><br>*沐藏料理所 ｜ 每週一固定公休，每週二彈性公休<br>預約專線：<a href="tel:0983629986">0983-629-986</a></div>
   </div>
 </section>
 <script>
 // ===== 店家設定（上線前請修改）=====
 var LINE_OA_ID = "@371oexcl";            // 官方 LINE ID，含 @
-var LINEPAY_URL = "";                      // 後端產生的 LINE Pay 付款連結（見說明）
 var DEPOSIT = 1000;                        // 每人訂金
 // =================================
 var $=function(i){return document.getElementById(i)};
@@ -77,10 +76,13 @@ $("oabtn").onclick=function(){
   var x=data();if(!ok(x))return;
   var msg="【沐藏料理所 訂位】\n👤 訂位人姓名："+x.n+"\n👥 用餐人數："+x.c+"位\n📅 用餐日期："+x.d+"\n🕓 用餐時間："+x.t+"\n📞 聯絡電話："+x.p+"\n🍽️ 套餐選擇："+x.s+"\n🚫 忌口或過敏："+(x.m||"無")+"\n🎂 餐敘目的："+x.o+"\n📝 其他備註："+(x.x||"無")+"\n💳 訂金："+money(x.c*DEPOSIT)+"（每位$1,000）";
   window.open("https://line.me/R/oaMessage/"+encodeURIComponent(LINE_OA_ID)+"/?"+encodeURIComponent(msg),"_blank")};
-$("paybtn").onclick=function(){
+$("paybtn").onclick=async function(){
   var x=data();if(!ok(x))return;
-  if(!LINEPAY_URL){alert("LINE Pay 尚未串接。請先傳送訂位資料至官方 LINE，由店家回傳付款連結。");return}
-  window.open(LINEPAY_URL+"?amount="+(x.c*DEPOSIT)+"&name="+encodeURIComponent(x.n),"_blank")};
+  var b=$("paybtn");b.disabled=true;b.textContent="建立付款中…";
+  try{var r=await fetch("/api/reserve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});
+    var j=await r.json();if(j.url){location.href=j.url;return}alert(j.error||"建立付款失敗，請稍後再試")}
+  catch(e){alert("網路錯誤，請稍後再試")}
+  b.disabled=false;b.textContent="LINE Pay 支付訂金"};
 </script>
 </body>
 </html>
