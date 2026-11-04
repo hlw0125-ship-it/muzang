@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>沐藏 訂位後台</title>
+<style>
+body{font-family:system-ui,-apple-system,"PingFang TC",sans-serif;max-width:760px;margin:0 auto;padding:16px;background:#f6f2ea;color:#2a2420}
+@media(prefers-color-scheme:dark){body{background:#1c1816;color:#f1e9de}.c{background:#26211e!important;border-color:#3a332e!important}}
+h1{font-size:20px}.c{background:#fff;border:1px solid #e3dccf;border-radius:12px;padding:12px;margin-bottom:10px;line-height:1.7;font-size:15px}
+.s{display:inline-block;padding:2px 10px;border-radius:99px;font-size:13px;color:#fff}.paid{background:#06a050}.pending{background:#c98a00}.cancelled,.failed{background:#999}
+button{padding:8px 12px;border:1px solid #8a3b2a;background:none;color:#8a3b2a;border-radius:8px;margin:6px 6px 0 0;font-size:14px}
+select{padding:8px;font-size:15px;margin-bottom:10px}
+</style></head><body>
+<h1>沐藏料理所 訂位清單</h1>
+<select id="f"><option value="">全部</option><option value="paid">已付訂金</option><option value="pending">待付款</option><option value="cancelled">已取消</option></select>
+<div id="l"></div>
+<script>
+var all=[];
+function load(){fetch("/api/admin/reservations").then(function(r){return r.json()}).then(function(d){all=d;draw()})}
+function draw(){
+  var f=document.getElementById("f").value,l=document.getElementById("l");l.innerHTML="";
+  var rows=all.filter(function(x){return !f||x.status===f}).sort(function(a,b){return (a.date+a.time)<(b.date+b.time)?-1:1});
+  if(!rows.length){l.textContent="沒有資料";return}
+  rows.forEach(function(x){
+    var d=document.createElement("div");d.className="c";
+    var st={paid:"已付訂金",pending:"待付款",cancelled:"已取消",failed:"付款失敗"}[x.status]||x.status;
+    var h=document.createElement("div");
+    var b=document.createElement("b");b.textContent=x.date+" "+x.time+"　"+x.name+"　"+x.people+"位";
+    var s=document.createElement("span");s.className="s "+x.status;s.textContent=st;
+    h.append(b," ",s);d.append(h);
+    var t=document.createElement("div");
+    t.textContent="電話："+x.phone+"｜"+x.pkg+"｜訂金 $"+x.amount.toLocaleString()+"｜目的："+x.purpose+"｜忌口："+(x.allergy||"無")+"｜備註："+(x.note||"無")+"｜編號："+x.id;
+    d.append(t);
+    [["paid","標為已付（轉帳）"],["pending","改回待付款"],["cancelled","取消訂位"]].forEach(function(p){
+      if(x.status===p[0])return;
+      var bt=document.createElement("button");bt.textContent=p[1];
+      bt.onclick=function(){fetch("/api/admin/reservations/"+x.id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:p[0]})}).then(load)};
+      d.append(bt)});
+    l.append(d)})}
+document.getElementById("f").onchange=draw;load();setInterval(load,30000);
+</script></body></html>
