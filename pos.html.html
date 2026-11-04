@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>沐藏料理所 POS</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f2ea;--card:#fff;--ink:#2a2420;--mute:#7a6f64;--acc:#8a3b2a;--line:#e3dccf;--ok:#06a050}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}}
+:root[data-theme="dark"]{--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px;letter-spacing:.15em}
+.sub{color:var(--mute);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:16px}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.item{display:block;width:100%;text-align:left;padding:16px;margin-bottom:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;font-size:17px}
+.item small{display:block;color:var(--mute);margin-top:4px;font-size:14px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;padding:12px;font-size:16px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.btn{width:100%;padding:14px;border:0;border-radius:10px;font-size:17px;background:var(--acc);color:#fff;margin-top:10px}
+.btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn.line{background:var(--ok)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;gap:8px}
+.ln button{border:0;background:none;color:var(--acc);font-size:15px}
+.tot{font-size:22px;font-weight:700;text-align:right;margin:10px 0}
+.dep{font-size:20px;color:var(--acc);font-weight:700}
+.note{font-size:13px;color:var(--mute);line-height:1.6}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(90vw,380px)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.hide{display:none}
+.sw{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:16px;margin:10px 0}
+.sw input[type=checkbox]{width:22px;height:22px;flex:none}
+.sw input[type=number]{width:120px;margin-left:auto;padding:8px}
+.sw b{margin-left:auto}
+.sw input[type=number]+b{margin-left:0}
+</style>
+</head>
+<body>
+<h1>沐藏料理所</h1>
+<div class="sub">板前無菜單料理 ・ POS 收銀</div>
+<div class="tabs"><button id="t1" class="on">POS 點餐</button><button id="t3">紀錄</button></div>
+
+<section id="v1">
+  <div class="card">
+    <button class="item" data-n="山海旬味・料理物語" data-p="2000">山海旬味・料理物語<small>$2,000 ・可改價</small></button>
+    <button class="item" data-n="山海旬味・經典懷石" data-p="1880">山海旬味・經典懷石<small>$1,880 ・可改價</small></button>
+    <button class="item" data-n="沐藏客製化預定" data-p="0" data-wine="1">沐藏客製化預定<small>可輸入備註名稱 ・ 自由輸入金額</small></button>
+  </div>
+  <div class="card">
+    <div id="cart"><div class="note">尚未點項目</div></div>
+    <div class="ln"><span>小計</span><b id="sub">$0</b></div>
+    <label class="sw"><input type="checkbox" id="svc" checked> 加收 10% 服務費 <b id="svcv"></b></label>
+    <label class="sw"><input type="checkbox" id="d9"> 9 折優惠（服務費不折扣）<b id="d9v"></b></label>
+    <label class="sw"><input type="checkbox" id="cp"> 優惠券 <input type="number" id="cpv" inputmode="numeric" placeholder="金額"></label>
+    <label class="sw"><input type="checkbox" id="bs"> 闆娘招待 <input type="number" id="bsv" inputmode="numeric" placeholder="金額"></label>
+    <div class="tot" id="total">$0</div>
+    <label>付款方式</label>
+    <select id="pay"><option>現金</option><option>信用卡</option><option>LINE Pay</option><option>轉帳</option></select>
+    <button class="btn" id="checkout">結帳</button>
+    <button class="btn ghost" id="clear">清空</button>
+  </div>
+</section>
+
+
+<section id="v3" class="hide">
+  <div class="card"><b>今日營收</b><div class="tot" id="sum">$0</div><div id="sales"></div><button class="btn ghost" id="exp">匯出今日銷售 CSV</button></div>
+  
+</section>
+
+<dialog id="dlg">
+  <b id="dn"></b>
+  <div id="dw"><label>備註名稱</label><input id="dwn" placeholder="例：慶生加點、客製內容"></div>
+  <label>金額</label><input id="dp" type="number" inputmode="numeric">
+  <label>數量</label><input id="dq" type="number" inputmode="numeric" value="1" min="1">
+  <button class="btn" id="dok">加入</button>
+  <button class="btn ghost" id="dcancel">取消</button>
+</dialog>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+function ld(k){try{return JSON.parse(localStorage.getItem(k)||"[]")}catch(e){return []}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+var cart=[],cur=null;
+var money=function(n){return "$"+Number(n).toLocaleString()};
+function show(n){[1,3].forEach(function(i){$("v"+i).classList.toggle("hide",i!=n);$("t"+i).classList.toggle("on",i==n)});if(n==3)renderLog()}
+[1,3].forEach(function(i){$("t"+i).onclick=function(){show(i)}});
+document.querySelectorAll(".item").forEach(function(b){b.onclick=function(){
+  cur=b;$("dn").textContent=b.dataset.n;$("dw").classList.toggle("hide",!b.dataset.wine);
+  $("dwn").value="";$("dp").value=b.dataset.p>0?b.dataset.p:"";$("dq").value=1;$("dlg").showModal()}});
+$("dcancel").onclick=function(){$("dlg").close()};
+$("dok").onclick=function(){
+  var p=Number($("dp").value),q=Math.max(1,Number($("dq").value)||1);
+  if(!(p>=0)||$("dp").value===""){$("dp").focus();return}
+  var nm=cur.dataset.n+($("dwn").value?"（"+$("dwn").value+"）":"");
+  cart.push({n:nm,p:p,q:q});$("dlg").close();rc()};
+var R={total:0};
+function calc(){
+  var sub=cart.reduce(function(a,c){return a+c.p*c.q},0);
+  var sf=$("svc").checked?Math.round(sub*0.1):0;
+  var d9=$("d9").checked?-Math.round(sub*0.1):0;
+  var cp=$("cp").checked?-Math.abs(Number($("cpv").value)||0):0;
+  var bs=$("bs").checked?-Math.abs(Number($("bsv").value)||0):0;
+  var t=Math.max(0,sub+sf+d9+cp+bs);
+  R={sub:sub,svc:sf,d9:d9,cp:cp,bs:bs,total:t};
+  $("sub").textContent=money(sub);
+  $("svcv").textContent=sf?"+"+money(sf):"";
+  $("d9v").textContent=d9?"-"+money(-d9):"";
+  $("total").textContent=money(t)}
+function resetAdj(){$("d9").checked=false;$("cp").checked=false;$("bs").checked=false;$("cpv").value="";$("bsv").value=""}
+function rc(){
+  var h="",t=0;
+  cart.forEach(function(c,i){t+=c.p*c.q;h+='<div class="ln"><span>'+esc(c.n)+' × '+c.q+'</span><span>'+money(c.p*c.q)+' <button data-i="'+i+'">刪</button></span></div>'});
+  $("cart").innerHTML=h||'<div class="note">尚未點項目</div>';calc();
+  document.querySelectorAll("#cart button").forEach(function(b){b.onclick=function(){cart.splice(b.dataset.i,1);rc()}})}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+$("clear").onclick=function(){cart=[];resetAdj();rc()};
+["svc","d9","cp","bs"].forEach(function(i){$(i).onchange=calc});
+["cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$(i.slice(0,2)).checked=true;calc()}});
+calc();
+function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+$("checkout").onclick=function(){
+  if(!cart.length)return;
+  calc();var t=R.total,s=ld("sales");
+  s.push({d:today(),time:new Date().toTimeString().slice(0,5),items:cart,total:t,adj:R,pay:$("pay").value});
+  sv("sales",s);cart=[];resetAdj();rc();alert("結帳完成 "+money(t))};
+function renderLog(){
+  var s=ld("sales").filter(function(x){return x.d==today()});
+  $("sum").textContent=money(s.reduce(function(a,x){return a+x.total},0));
+  $("sales").innerHTML=s.map(function(x){return '<div class="ln"><span>'+x.time+' '+esc(x.pay)+'<br><span class="note">'+x.items.map(function(c){return esc(c.n)+'×'+c.q}).join("、")+'</span></span><b>'+money(x.total)+'</b></div>'}).join("")||'<div class="note">今日尚無銷售</div>';
+}
+$("exp").onclick=function(){
+  var rows=["日期,時間,付款,品項,金額"];
+  ld("sales").filter(function(x){return x.d==today()}).forEach(function(x){rows.push([x.d,x.time,x.pay,'"'+x.items.map(function(c){return c.n+"x"+c.q}).join(" / ")+'"',x.total].join(","))});
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\ufeff"+encodeURIComponent(rows.join("\n"));a.download="sales-"+today()+".csv";a.click()};
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>沐藏料理所 線上訂位</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f2ea;--card:#fff;--ink:#2a2420;--mute:#7a6f64;--acc:#8a3b2a;--line:#e3dccf;--ok:#06a050}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}}
+:root[data-theme="dark"]{--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px;letter-spacing:.15em}
+.sub{color:var(--mute);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:16px}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.item{display:block;width:100%;text-align:left;padding:16px;margin-bottom:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;font-size:17px}
+.item small{display:block;color:var(--mute);margin-top:4px;font-size:14px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;padding:12px;font-size:16px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.btn{width:100%;padding:14px;border:0;border-radius:10px;font-size:17px;background:var(--acc);color:#fff;margin-top:10px}
+.btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn.line{background:var(--ok)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;gap:8px}
+.ln button{border:0;background:none;color:var(--acc);font-size:15px}
+.tot{font-size:22px;font-weight:700;text-align:right;margin:10px 0}
+.dep{font-size:20px;color:var(--acc);font-weight:700}
+.note{font-size:13px;color:var(--mute);line-height:1.6}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(90vw,380px)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<h1>沐藏料理所</h1>
+<div class="sub">板前無菜單料理 ・ 線上訂位</div>
+<section><div class="card"><b>🍃 日式技法 × 台灣山海 × 四季旬味</b><div class="note" style="margin-top:6px">以當季山海食材為核心，透過日式料理技法呈現季節之美。兩款套餐皆以當季食材設計，原則上提供 13 道以上料理，差別在於餐序安排與料理呈現。<br><br>🌸 <b>山海旬味・料理物語</b> NT$2,000／位＋10%<br>結合您的餐敘目的，以專屬章節編排層層展開。適合慶生、紀念日。<br><br>🍣 <b>山海旬味・經典懷石</b> NT$1,880／位＋10%<br>依循經典懷石餐序，從前菜、刺身到熟食。適合喜愛傳統日式料理者。</div></div>
+  <div class="card">
+    <label>訂位人姓名</label><input id="rn" autocomplete="name">
+    <label>電話</label><input id="rp" type="tel" autocomplete="tel">
+    <div class="row">
+      <div><label>日期</label><input id="rd" type="date"></div>
+      <div><label>時間</label><input id="rt" type="time" value="18:00"></div>
+    </div>
+    <label>用餐人數</label><input id="rc" type="number" min="1" max="12" value="2">
+    <label>套餐選擇</label><select id="rs"><option>$1,880｜山海旬味・經典懷石</option><option>$2,000｜山海旬味・料理物語</option></select>
+    <label>忌口或過敏食材</label><input id="rm">
+    <label>餐敘目的</label><select id="ro"><option>一般聚餐</option><option>慶生</option><option>紀念日</option></select>
+    <label>其他備註</label><input id="rx">
+    <div class="tot">訂金 <span class="dep" id="dep">$2,000</span></div>
+    <div class="note">📌 沐藏採全預約制，請至少提前一日預約。所有訂位須預付訂金保留席次，每位 $1,000。<br>・訂位日隔日起 3 日內完成付款<br>・訂金入帳確認後，才正式保留席次<br>・逾期未付款且未聯繫者，將釋出席次<br>訂位、取消及延期規範：<a href="https://www.instagram.com/p/DeWsdK3D-Eb/" target="_blank" rel="noopener">點此查看</a></div>
+    <button class="btn line" id="paybtn">LINE Pay 支付訂金</button>
+    <button class="btn ghost" id="oabtn">傳送訂位資料至官方 LINE</button>
+    <div class="note" style="margin-top:10px">流程：①傳送訂位資料至官方 LINE → ②店家確認 → ③以 LINE Pay 付訂金 → 訂位完成。<br><br>*沐藏料理所 ｜ 每週一固定公休，每週二彈性公休<br>預約專線：<a href="tel:0983629986">0983-629-986</a></div>
+  </div>
+</section>
+<script>
+// ===== 店家設定（上線前請修改）=====
+var LINE_OA_ID = "@371oexcl";            // 官方 LINE ID，含 @
+var LINEPAY_URL = "";                      // 後端產生的 LINE Pay 付款連結（見說明）
+var DEPOSIT = 1000;                        // 每人訂金
+// =================================
+var $=function(i){return document.getElementById(i)};
+var money=function(n){return "$"+Number(n).toLocaleString()};
+function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+// 訂位
+$("rd").min=today();
+function upd(){$("dep").textContent=money((Number($("rc").value)||0)*DEPOSIT)}
+$("rc").oninput=upd;upd();
+function data(){return{n:$("rn").value.trim(),p:$("rp").value.trim(),d:$("rd").value,t:$("rt").value,c:Number($("rc").value)||0,m:$("rm").value.trim(),s:$("rs").value,o:$("ro").value,x:$("rx").value.trim()}}
+function ok(x){if(!x.n||!x.p||!x.d||!x.t||x.c<1){alert("請完整填寫姓名、電話、日期、時間、人數");return false}return true}
+$("oabtn").onclick=function(){
+  var x=data();if(!ok(x))return;
+  var msg="【沐藏料理所 訂位】\n👤 訂位人姓名："+x.n+"\n👥 用餐人數："+x.c+"位\n📅 用餐日期："+x.d+"\n🕓 用餐時間："+x.t+"\n📞 聯絡電話："+x.p+"\n🍽️ 套餐選擇："+x.s+"\n🚫 忌口或過敏："+(x.m||"無")+"\n🎂 餐敘目的："+x.o+"\n📝 其他備註："+(x.x||"無")+"\n💳 訂金："+money(x.c*DEPOSIT)+"（每位$1,000）";
+  window.open("https://line.me/R/oaMessage/"+encodeURIComponent(LINE_OA_ID)+"/?"+encodeURIComponent(msg),"_blank")};
+$("paybtn").onclick=function(){
+  var x=data();if(!ok(x))return;
+  if(!LINEPAY_URL){alert("LINE Pay 尚未串接。請先傳送訂位資料至官方 LINE，由店家回傳付款連結。");return}
+  window.open(LINEPAY_URL+"?amount="+(x.c*DEPOSIT)+"&name="+encodeURIComponent(x.n),"_blank")};
+</script>
+</body>
+</html>
