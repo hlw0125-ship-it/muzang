@@ -156,7 +156,7 @@ app.get('/result', (req, res) => {
   let btn = '';
   if (s === 'ok' && r) {
     const msg = summary(r, '【沐藏料理所 訂位確認】已付訂金');
-    btn = `<p><a href="https://line.me/R/oaMessage/${encodeURIComponent(LINE_OA_ID)}/?${encodeURIComponent(msg)}" style="display:inline-block;padding:14px 22px;background:#06a050;color:#fff;border-radius:10px;text-decoration:none">傳送訂位確認給官方 LINE</a></p>`;
+    btn = `<p><b>最後一步：請按下方按鈕，把訂位資料傳送給官方 LINE，我們收到後會與您確認。</b></p><p><a href="https://line.me/R/oaMessage/${encodeURIComponent(LINE_OA_ID)}/?${encodeURIComponent(msg)}" style="display:inline-block;padding:14px 22px;background:#06a050;color:#fff;border-radius:10px;text-decoration:none">傳送訂位確認給官方 LINE</a></p>`;
   }
   res.send(`<!DOCTYPE html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>沐藏料理所</title>
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:12vh auto;padding:20px;text-align:center;line-height:1.7">
