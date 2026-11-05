@@ -7,7 +7,7 @@ const path = require('path');
 const {
   LINEPAY_CHANNEL_ID, LINEPAY_CHANNEL_SECRET, BASE_URL, ADMIN_PASSWORD,
   LINEPAY_ENV = 'sandbox', LINE_OA_ID = '@371oexcl',
-  LINE_CHANNEL_ACCESS_TOKEN, OWNER_LINE_IDS = '',
+  LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, OWNER_LINE_IDS = '',
 } = process.env;
 const LP_HOST = LINEPAY_ENV === 'production' ? 'https://api-pay.line.me' : 'https://sandbox-api-pay.line.me';
 const DEPOSIT = 1000;
@@ -45,13 +45,25 @@ function summary(r, title) {
     '套餐：' + r.pkg, '忌口或過敏：' + (r.allergy || '無'), '餐敘目的：' + r.purpose, '其他備註：' + (r.note || '無'),
     '訂金：$' + r.amount.toLocaleString(), '編號：' + r.id].join('\n');
 }
+async function lineToken() {
+  if (LINE_CHANNEL_ACCESS_TOKEN) return LINE_CHANNEL_ACCESS_TOKEN;
+  if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET) return null;
+  try {
+    const res = await fetch('https://api.line.me/oauth2/v3/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: LINE_CHANNEL_ID, client_secret: LINE_CHANNEL_SECRET }),
+    });
+    return (await res.json()).access_token || null;
+  } catch (e) { console.error('LINE token error', e); return null; }
+}
 async function notify(text) {
-  if (!LINE_CHANNEL_ACCESS_TOKEN) return;
+  const token = await lineToken();
+  if (!token) return;
   for (const to of OWNER_LINE_IDS.split(',').map(x => x.trim()).filter(Boolean)) {
     try {
       const res = await fetch('https://api.line.me/v2/bot/message/push', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + LINE_CHANNEL_ACCESS_TOKEN },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ to, messages: [{ type: 'text', text: text.slice(0, 4900) }] }),
       });
       if (!res.ok) console.error('LINE push failed', res.status, await res.text());
@@ -151,6 +163,23 @@ app.get('/result', (req, res) => {
 <h2>${t[0]}</h2><p>${t[1]}</p>${btn}
 <p><a href="https://line.me/R/ti/p/${encodeURIComponent(LINE_OA_ID)}">返回官方 LINE</a></p>
 <p style="color:#888">預約專線 0983-629-986</p></body>`);
+});
+
+// ---- 查詢官方帳號好友的 User ID（只給管理員，用來設定 OWNER_LINE_IDS）----
+app.get('/api/admin/line-followers', auth, async (req, res) => {
+  try {
+    const token = await lineToken();
+    if (!token) return res.status(503).send('LINE 金鑰未設定');
+    const r = await fetch('https://api.line.me/v2/bot/followers/ids?limit=300', { headers: { Authorization: 'Bearer ' + token } });
+    const j = await r.json();
+    if (!r.ok) return res.status(r.status).json(j);
+    const out = [];
+    for (const id of (j.userIds || []).slice(0, 100)) {
+      const p = await (await fetch('https://api.line.me/v2/bot/profile/' + id, { headers: { Authorization: 'Bearer ' + token } })).json();
+      out.push({ id, name: p.displayName });
+    }
+    res.json(out);
+  } catch (e) { res.status(500).send(String(e)); }
 });
 
 // ---- 後台 API ----
