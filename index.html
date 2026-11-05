@@ -44,9 +44,11 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <label>電話</label><input id="rp" type="tel" autocomplete="tel">
     <div class="row">
       <div><label>日期</label><input id="rd" type="date"></div>
-      <div><label>時間</label><input id="rt" type="time" value="18:00"></div>
+      <div><label>時間</label><select id="rt"><option value="">請先選擇日期</option></select></div>
     </div>
-    <label>用餐人數</label><input id="rc" type="number" min="1" max="12" value="2">
+    <div id="slotmsg" class="note" style="color:#c0392b"></div>
+    <div class="note" style="margin:8px 0">🕘 線上開放時段：週三至週五 12:00、18:00；週六、日 11:30、13:30、18:00、20:00。每個時段限 8 位。<br>若您希望預約其他用餐時段，歡迎透過官方 LINE 或電話聯繫沐藏料理所，我們將由專人協助安排。<br>官方 LINE：<a href="https://lin.ee/pOnRuXSY" target="_blank" rel="noopener">https://lin.ee/pOnRuXSY</a><br>訂位專線：<a href="tel:0983629986">0983-629-986</a></div>
+    <label>用餐人數</label><input id="rc" type="number" min="1" value="2"><div id="pmsg" class="note" style="color:#c0392b"></div>
     <label>套餐選擇</label><select id="rs"><option>$1,880｜山海旬味・經典懷石</option><option>$2,000｜山海旬味・料理物語</option></select>
     <label>忌口或過敏食材</label><input id="rm">
     <label>餐敘目的</label><select id="ro"><option>一般聚餐</option><option>慶生</option><option>紀念日</option></select>
@@ -67,20 +69,40 @@ var $=function(i){return document.getElementById(i)};
 var money=function(n){return "$"+Number(n).toLocaleString()};
 function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 // 訂位
-$("rd").min=today();
+function tomorrow(){var d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+$("rd").min=tomorrow();
+var SL={};
+var OTHER="若您希望預約其他用餐時段，歡迎透過官方 LINE 或電話聯繫沐藏料理所，我們將由專人協助安排。";
+function loadSlots(){
+  var d=$("rd").value,s=$("rt");s.innerHTML='<option value="">請先選擇日期</option>';SL={};$("slotmsg").textContent="";$("pmsg").textContent="";
+  if(!d)return;
+  fetch("/api/slots?date="+d).then(function(r){return r.json()}).then(function(j){
+    if(j.tooSoon){$("slotmsg").textContent="請至少提前一日預約。";return}
+    if(!j.slots.length){$("slotmsg").textContent="此日期（週一、週二）不開放線上訂位。"+OTHER;return}
+    s.innerHTML='<option value="">請選擇時段</option>';
+    j.slots.forEach(function(x){SL[x.time]=x.remaining;var o=document.createElement("option");o.value=x.time;
+      o.textContent=x.time+(x.remaining>0?"（剩餘 "+x.remaining+" 位）":"（已額滿）");if(x.remaining<=0)o.disabled=true;s.appendChild(o)});
+    pcheck()}).catch(function(){$("slotmsg").textContent="無法取得時段，請稍後再試"})}
+function pcheck(){
+  var n=Number($("rc").value)||0,t=$("rt").value,m="";
+  if(n>8)m="8 位以上團體訂位，請來電聯繫沐藏料理所，由專人協助安排。";
+  else if(t&&SL[t]!==undefined&&n>SL[t])m=SL[t]>0?"該時段僅剩 "+SL[t]+" 位，請調整人數。":"該時段已額滿。";
+  $("pmsg").textContent=m;return !m}
+$("rd").onchange=loadSlots;$("rt").onchange=pcheck;
 function upd(){$("dep").textContent=money((Number($("rc").value)||0)*DEPOSIT)}
-$("rc").oninput=upd;upd();
+$("rc").oninput=function(){upd();pcheck()};upd();
 function data(){return{n:$("rn").value.trim(),p:$("rp").value.trim(),d:$("rd").value,t:$("rt").value,c:Number($("rc").value)||0,m:$("rm").value.trim(),s:$("rs").value,o:$("ro").value,x:$("rx").value.trim()}}
-function ok(x){if(!x.n||!x.p||!x.d||!x.t||x.c<1){alert("請完整填寫姓名、電話、日期、時間、人數");return false}return true}
+function ok(x){if(!x.n||!x.p||!x.d||!x.t||x.c<1){alert("請完整填寫姓名、電話、日期、時間、人數");return false}if(!pcheck()){alert($("pmsg").textContent);return false}return true}
 $("oabtn").onclick=function(){
   var x=data();if(!ok(x))return;
   var msg="【沐藏料理所 訂位】\n👤 訂位人姓名："+x.n+"\n👥 用餐人數："+x.c+"位\n📅 用餐日期："+x.d+"\n🕓 用餐時間："+x.t+"\n📞 聯絡電話："+x.p+"\n🍽️ 套餐選擇："+x.s+"\n🚫 忌口或過敏："+(x.m||"無")+"\n🎂 餐敘目的："+x.o+"\n📝 其他備註："+(x.x||"無")+"\n💳 訂金："+money(x.c*DEPOSIT)+"（每位$1,000）";
+  try{fetch("/api/inquiry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x),keepalive:true})}catch(e){}
   window.open("https://line.me/R/oaMessage/"+encodeURIComponent(LINE_OA_ID)+"/?"+encodeURIComponent(msg),"_blank")};
 $("paybtn").onclick=async function(){
   var x=data();if(!ok(x))return;
   var b=$("paybtn");b.disabled=true;b.textContent="建立付款中…";
   try{var r=await fetch("/api/reserve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});
-    var j=await r.json();if(j.url){location.href=j.url;return}alert(j.error||"建立付款失敗，請稍後再試")}
+    var j=await r.json();if(j.url){location.href=j.url;return}alert(j.error||"建立付款失敗，請稍後再試");loadSlots()}
   catch(e){alert("網路錯誤，請稍後再試")}
   b.disabled=false;b.textContent="LINE Pay 支付訂金"};
 </script>
