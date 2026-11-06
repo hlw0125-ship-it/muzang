@@ -33,6 +33,7 @@ input,select{width:100%;padding:12px;font-size:16px;border:1px solid var(--line)
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(90vw,380px)}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 .hide{display:none}
+a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offset:3px;word-break:break-all}
 </style>
 </head>
 <body>
@@ -49,7 +50,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div id="slotmsg" class="note" style="color:#c0392b"></div>
     <div class="note" style="margin:8px 0">🕘 線上開放時段：週三至週五 12:00、18:00；週六、日 11:30、13:30、18:00、20:00。每個時段限 8 位。<br>若您希望預約其他用餐時段，歡迎透過官方 LINE 或電話聯繫沐藏料理所，我們將由專人協助安排。<br>官方 LINE：<a href="https://lin.ee/pOnRuXSY" target="_blank" rel="noopener">https://lin.ee/pOnRuXSY</a><br>訂位專線：<a href="tel:0983629986">0983-629-986</a></div>
     <label>用餐人數</label><input id="rc" type="number" min="1" value="2"><div id="pmsg" class="note" style="color:#c0392b"></div>
-    <label>套餐選擇</label><select id="rs"><option>$1,880｜山海旬味・經典懷石</option><option>$2,000｜山海旬味・料理物語</option></select>
+    <label>套餐選擇</label><select id="rs"><option>$1,880｜山海旬味・經典懷石</option><option selected>$2,000｜山海旬味・料理物語</option></select>
     <label>忌口或過敏食材</label><input id="rm">
     <label>餐敘目的</label><select id="ro"><option>一般聚餐</option><option>慶生</option><option>紀念日</option></select>
     <label>其他備註</label><input id="rx">
