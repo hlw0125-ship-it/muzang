@@ -34,6 +34,9 @@ dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);co
 dialog::backdrop{background:rgba(0,0,0,.5)}
 .hide{display:none}
 a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offset:3px;word-break:break-all}
+.row>*{min-width:0}
+input[type=date],select{display:block;min-width:0;max-width:100%;min-height:48px;-webkit-appearance:none;appearance:none;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
 </style>
 </head>
 <body>
@@ -62,6 +65,8 @@ a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offs
   </div>
 </section>
 <script>
+if(/github\.io$/.test(location.hostname)){location.replace("https://muzang.onrender.com/")}
+
 // ===== 店家設定（上線前請修改）=====
 var LINE_OA_ID = "@371oexcl";            // 官方 LINE ID，含 @
 var DEPOSIT = 1000;                        // 每人訂金
