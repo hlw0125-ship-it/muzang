@@ -1,88 +1,111 @@
 <!DOCTYPE html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>沐藏 訂位後台</title>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>沐藏料理所 線上訂位</title>
 <style>
-:root{--bg:#f6f2ea;--card:#fff;--ink:#2a2420;--mute:#7a6f64;--acc:#8a3b2a;--line:#e3dccf}
-@media(prefers-color-scheme:dark){:root{--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}}
-*{box-sizing:border-box}body{font-family:system-ui,-apple-system,"PingFang TC",sans-serif;max-width:820px;margin:0 auto;padding:14px;background:var(--bg);color:var(--ink)}
-h1{font-size:20px;margin:4px 0 10px}.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-input,select,textarea{padding:10px;font-size:16px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);width:100%}
-.bar input,.bar select{width:auto;flex:1;min-width:130px}
-.c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;line-height:1.7;font-size:15px}
-.s{display:inline-block;padding:1px 10px;border-radius:99px;font-size:13px;color:#fff;margin-left:6px}
-.paid{background:#06a050}.pending{background:#c98a00}.inquiry{background:#3b6fb6}.cancelled,.failed{background:#999}
-.m{color:var(--mute);font-size:14px}
-button{padding:10px 14px;border:1px solid var(--acc);background:none;color:var(--acc);border-radius:8px;font-size:15px}
-button.p{background:var(--acc);color:#fff}
-.sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.sum div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
-dialog{border:1px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);width:min(94vw,480px);max-height:92vh;overflow:auto}
-dialog::backdrop{background:rgba(0,0,0,.5)}label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}
-.r2{display:flex;gap:8px}.r2>div{flex:1}
-</style></head><body>
-<h1>沐藏料理所 訂位後台</h1>
-<div class="bar">
-  <input type="date" id="fd"><select id="fs"><option value="">全部狀態</option><option value="paid">已付訂金</option><option value="pending">待付訂金</option><option value="inquiry">洽詢中</option><option value="cancelled">已取消</option></select>
-  <button class="p" id="add">＋ 新增訂位</button>
-</div>
-<div class="sum" id="sum"></div>
-<div id="l"></div>
-
-<dialog id="dlg"><form method="dialog" id="fm" onsubmit="return false">
-<b id="dt">訂位</b>
-<label>訂位人</label><input id="f_name">
-<label>聯絡電話</label><input id="f_phone" type="tel">
-<div class="r2"><div><label>日期</label><input id="f_date" type="date"></div><div><label>時間</label><input id="f_time" type="time"></div></div>
-<div class="r2"><div><label>人數</label><input id="f_people" type="number" min="1"></div><div><label>價格（NT$，未含 10% 服務費）</label><input id="f_price" type="number" min="0"></div></div>
-<label>套餐</label><input id="f_pkg" placeholder="例：$1,880｜山海旬味・經典懷石">
-<label>備註（忌口、目的、其他）</label><textarea id="f_note" rows="3"></textarea>
-<div class="r2"><div><label>訂金狀態</label><select id="f_status"><option value="inquiry">洽詢中</option><option value="pending">待付訂金</option><option value="paid">已付訂金</option><option value="cancelled">已取消</option></select></div><div><label>訂金支付日期</label><input id="f_paid" type="date"></div></div>
-<div class="r2"><div><label>接洽服務人員</label><input id="f_handler"></div><div><label>接洽日期</label><input id="f_cdate" type="date"></div></div>
-<label>接洽來源</label><input id="f_source" list="src" placeholder="例：官方LINE、電話、現場"><datalist id="src"><option>官方LINE</option><option>電話</option><option>網站訂位</option><option>現場</option><option>Ocard</option><option>其他</option></datalist>
-<div style="display:flex;gap:8px;margin-top:14px"><button class="p" id="ok" style="flex:1">儲存</button><button id="cx" style="flex:1">取消</button></div>
-</form></dialog>
-
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f2ea;--card:#fff;--ink:#2a2420;--mute:#7a6f64;--acc:#8a3b2a;--line:#e3dccf;--ok:#06a050}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}}
+:root[data-theme="dark"]{--bg:#1c1816;--card:#26211e;--ink:#f1e9de;--mute:#a89c8f;--acc:#e0866f;--line:#3a332e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px;letter-spacing:.15em}
+.sub{color:var(--mute);font-size:13px;margin-bottom:12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:16px}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.item{display:block;width:100%;text-align:left;padding:16px;margin-bottom:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;font-size:17px}
+.item small{display:block;color:var(--mute);margin-top:4px;font-size:14px}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;padding:12px;font-size:16px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.btn{width:100%;padding:14px;border:0;border-radius:10px;font-size:17px;background:var(--acc);color:#fff;margin-top:10px}
+.btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn.line{background:var(--ok)}
+.ln{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;gap:8px}
+.ln button{border:0;background:none;color:var(--acc);font-size:15px}
+.tot{font-size:22px;font-weight:700;text-align:right;margin:10px 0}
+.dep{font-size:20px;color:var(--acc);font-weight:700}
+.note{font-size:13px;color:var(--mute);line-height:1.6}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(90vw,380px)}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.hide{display:none}
+a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offset:3px;word-break:break-all}
+</style>
+</head>
+<body>
+<h1>沐藏料理所</h1>
+<div class="sub">板前無菜單料理 ・ 線上訂位</div>
+<section><div class="card"><b>🍃 日式技法 × 台灣山海 × 四季旬味</b><div class="note" style="margin-top:6px">以當季山海食材為核心，透過日式料理技法呈現季節之美。兩款套餐皆以當季食材設計，原則上提供 13 道以上料理，差別在於餐序安排與料理呈現。<br><br>🌸 <b>山海旬味・料理物語</b> NT$2,000／位＋10%<br>結合您的餐敘目的，以專屬章節編排層層展開。適合慶生、紀念日。<br><br>🍣 <b>山海旬味・經典懷石</b> NT$1,880／位＋10%<br>依循經典懷石餐序，從前菜、刺身到熟食。適合喜愛傳統日式料理者。</div></div>
+  <div class="card">
+    <label>訂位人姓名</label><input id="rn" autocomplete="name">
+    <label>電話</label><input id="rp" type="tel" autocomplete="tel">
+    <div class="row">
+      <div><label>日期</label><input id="rd" type="date"></div>
+      <div><label>時間</label><select id="rt"><option value="">請先選擇日期</option></select></div>
+    </div>
+    <div id="slotmsg" class="note" style="color:#c0392b"></div>
+    <div class="note" style="margin:8px 0">🕘 線上開放時段：週三至週五 12:00、18:00；週六、日 11:30、13:30、18:00、20:00。每個時段限 8 位。<br>若您希望預約其他用餐時段，歡迎透過官方 LINE 或電話聯繫沐藏料理所，我們將由專人協助安排。<br>官方 LINE：<a href="https://lin.ee/pOnRuXSY" target="_blank" rel="noopener">https://lin.ee/pOnRuXSY</a><br>訂位專線：<a href="tel:0983629986">0983-629-986</a></div>
+    <label>用餐人數</label><input id="rc" type="number" min="1" value="2"><div id="pmsg" class="note" style="color:#c0392b"></div>
+    <label>套餐選擇</label><select id="rs"><option>$1,880｜山海旬味・經典懷石</option><option>$2,000｜山海旬味・料理物語</option></select>
+    <label>忌口或過敏食材</label><input id="rm">
+    <label>餐敘目的</label><select id="ro"><option>一般聚餐</option><option>慶生</option><option>紀念日</option></select>
+    <label>其他備註</label><input id="rx">
+    <div class="tot">訂金 <span class="dep" id="dep">$2,000</span></div>
+    <div class="note">📌 沐藏採全預約制，請至少提前一日預約。所有訂位須預付訂金保留席次，每位 $1,000。<br>・訂位日隔日起 3 日內完成付款<br>・訂金入帳確認後，才正式保留席次<br>・逾期未付款且未聯繫者，將釋出席次<br>訂位、取消及延期規範：<a href="https://www.instagram.com/p/DeWsdK3D-Eb/" target="_blank" rel="noopener">點此查看</a></div>
+    <button class="btn line" id="paybtn">LINE Pay 支付訂金</button>
+    <button class="btn ghost" id="oabtn">傳送訂位資料至官方 LINE</button>
+    <div class="note" style="margin-top:10px">流程：填寫資料 → 按「LINE Pay 支付訂金」→ 付款完成，席位即保留。如需洽詢，可先傳送訂位資料至官方 LINE。<br><br>*沐藏料理所 ｜ 每週一固定公休，每週二彈性公休<br>預約專線：<a href="tel:0983629986">0983-629-986</a></div>
+  </div>
+</section>
 <script>
-var all=[],cur=null,$=function(i){return document.getElementById(i)};
-var ST={paid:"已付訂金",pending:"待付訂金",inquiry:"洽詢中",cancelled:"已取消",failed:"付款失敗"};
-function holds(x){return x.status==="paid"||(x.status==="pending"&&(x.manual||Date.now()-new Date(x.created)<9e5))}
-function load(){fetch("/api/admin/reservations").then(function(r){return r.json()}).then(function(d){all=d;draw();slots()})}
-function slots(){var d=$("fd").value,s=$("sum");s.innerHTML="";if(!d)return;
+// ===== 店家設定（上線前請修改）=====
+var LINE_OA_ID = "@371oexcl";            // 官方 LINE ID，含 @
+var DEPOSIT = 1000;                        // 每人訂金
+// =================================
+var $=function(i){return document.getElementById(i)};
+var money=function(n){return "$"+Number(n).toLocaleString()};
+function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+// 訂位
+function tomorrow(){var d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+$("rd").min=tomorrow();
+var SL={};
+var OTHER="若您希望預約其他用餐時段，歡迎透過官方 LINE 或電話聯繫沐藏料理所，我們將由專人協助安排。";
+function loadSlots(){
+  var d=$("rd").value,s=$("rt");s.innerHTML='<option value="">請先選擇日期</option>';SL={};$("slotmsg").textContent="";$("pmsg").textContent="";
+  if(!d)return;
   fetch("/api/slots?date="+d).then(function(r){return r.json()}).then(function(j){
-    if(!j.slots.length){s.textContent="當日不在固定開放時段（週一、週二）";return}
-    j.slots.forEach(function(x){var e=document.createElement("div");e.textContent=x.time+" 剩 "+x.remaining+" / "+j.cap+" 位";s.append(e)})})}
-function T(tag,txt,cls){var e=document.createElement(tag);if(txt!=null)e.textContent=txt;if(cls)e.className=cls;return e}
-function draw(){
-  var fd=$("fd").value,fs=$("fs").value,l=$("l");l.innerHTML="";
-  var rows=all.filter(function(x){return(!fd||x.date===fd)&&(!fs||x.status===fs)}).sort(function(a,b){return(a.date+a.time)<(b.date+b.time)?-1:1});
-  if(!rows.length){l.textContent="沒有資料";return}
-  rows.forEach(function(x){
-    var d=T("div",null,"c"),h=T("div");
-    h.append(T("b",x.date+" "+x.time+"　"+x.name+"　"+x.people+"位"),T("span",ST[x.status]||x.status,"s "+x.status));d.append(h);
-    d.append(T("div","電話："+x.phone+"　價格：$"+Number(x.price||0).toLocaleString()+(x.pkg?"（"+x.pkg+"）":"")));
-    d.append(T("div","訂金："+(x.status==="paid"?"已支付"+(x.paidAt?"（"+x.paidAt.slice(0,10)+"）":""):"未支付")+"　$"+(x.people*1000).toLocaleString()));
-    var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
-    if(nt)d.append(T("div",nt,"m"));
-    d.append(T("div","接洽："+(x.handler||"—")+"｜"+(x.contactDate||"—")+"｜來源："+(x.source||"—"),"m"));
-    var b=T("button","編輯");b.onclick=function(){open_(x)};b.style.marginTop="6px";d.append(b);l.append(d)})}
-function open_(x){cur=x;$("dt").textContent=x?"編輯訂位":"新增訂位";
-  var v=x||{status:"pending",contactDate:new Date(Date.now()+288e5).toISOString().slice(0,10),people:2};
-  $("f_name").value=v.name||"";$("f_phone").value=v.phone||"";$("f_date").value=v.date||"";$("f_time").value=v.time||"";
-  $("f_people").value=v.people||"";$("f_price").value=v.price||"";$("f_pkg").value=v.pkg||"";
-  $("f_note").value=[v.allergy&&"忌口："+v.allergy,v.purpose&&"目的："+v.purpose,v.note].filter(Boolean).join("；");
-  $("f_status").value=v.status==="failed"?"cancelled":v.status;$("f_paid").value=(v.paidAt||"").slice(0,10);
-  $("f_handler").value=v.handler||"";$("f_cdate").value=v.contactDate||"";$("f_source").value=v.source||"";$("dlg").showModal()}
-function body(force){return{name:$("f_name").value.trim(),phone:$("f_phone").value.trim(),date:$("f_date").value,time:$("f_time").value,
-  people:$("f_people").value,price:$("f_price").value,pkg:$("f_pkg").value,note:$("f_note").value,allergy:cur?"":"",purpose:cur?"":"",
-  status:$("f_status").value,paidAt:$("f_paid").value,handler:$("f_handler").value,contactDate:$("f_cdate").value,source:$("f_source").value,force:!!force}}
-function send(force){
-  var b=body(force);if(cur){b.allergy="";b.purpose=""}
-  fetch(cur?"/api/admin/reservations/"+cur.id:"/api/admin/reservations",{method:cur?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)})
-  .then(function(r){return r.json().then(function(j){return[r.status,j]})}).then(function(p){
-    if(p[0]===409){if(confirm(p[1].error))send(true);return}
-    if(p[0]!==200){alert(p[1].error||"儲存失敗");return}
-    $("dlg").close();load()})}
-$("ok").onclick=function(){send(false)};$("cx").onclick=function(){$("dlg").close()};
-$("add").onclick=function(){open_(null)};
-$("fd").onchange=function(){draw();slots()};$("fs").onchange=draw;
-load();setInterval(load,30000);
-</script></body></html>
+    if(j.tooSoon){$("slotmsg").textContent="請至少提前一日預約。";return}
+    if(!j.slots.length){$("slotmsg").textContent="此日期（週一、週二）不開放線上訂位。"+OTHER;return}
+    s.innerHTML='<option value="">請選擇時段</option>';
+    j.slots.forEach(function(x){SL[x.time]=x.remaining;var o=document.createElement("option");o.value=x.time;
+      o.textContent=x.time+(x.remaining>0?"（剩餘 "+x.remaining+" 位）":"（已額滿）");if(x.remaining<=0)o.disabled=true;s.appendChild(o)});
+    pcheck()}).catch(function(){$("slotmsg").textContent="無法取得時段，請稍後再試"})}
+function pcheck(){
+  var n=Number($("rc").value)||0,t=$("rt").value,m="";
+  if(n>8)m="8 位以上團體訂位，請來電聯繫沐藏料理所，由專人協助安排。";
+  else if(t&&SL[t]!==undefined&&n>SL[t])m=SL[t]>0?"該時段僅剩 "+SL[t]+" 位，請調整人數。":"該時段已額滿。";
+  $("pmsg").textContent=m;return !m}
+$("rd").onchange=loadSlots;$("rt").onchange=pcheck;
+function upd(){$("dep").textContent=money((Number($("rc").value)||0)*DEPOSIT)}
+$("rc").oninput=function(){upd();pcheck()};upd();
+function data(){return{n:$("rn").value.trim(),p:$("rp").value.trim(),d:$("rd").value,t:$("rt").value,c:Number($("rc").value)||0,m:$("rm").value.trim(),s:$("rs").value,o:$("ro").value,x:$("rx").value.trim()}}
+function ok(x){if(!x.n||!x.p||!x.d||!x.t||x.c<1){alert("請完整填寫姓名、電話、日期、時間、人數");return false}if(!pcheck()){alert($("pmsg").textContent);return false}return true}
+$("oabtn").onclick=function(){
+  var x=data();if(!ok(x))return;
+  var msg="【沐藏料理所 訂位】\n👤 訂位人姓名："+x.n+"\n👥 用餐人數："+x.c+"位\n📅 用餐日期："+x.d+"\n🕓 用餐時間："+x.t+"\n📞 聯絡電話："+x.p+"\n🍽️ 套餐選擇："+x.s+"\n🚫 忌口或過敏："+(x.m||"無")+"\n🎂 餐敘目的："+x.o+"\n📝 其他備註："+(x.x||"無")+"\n💳 訂金："+money(x.c*DEPOSIT)+"（每位$1,000）";
+  try{fetch("/api/inquiry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x),keepalive:true})}catch(e){}
+  window.open("https://line.me/R/oaMessage/"+encodeURIComponent(LINE_OA_ID)+"/?"+encodeURIComponent(msg),"_blank")};
+$("paybtn").onclick=async function(){
+  var x=data();if(!ok(x))return;
+  var b=$("paybtn");b.disabled=true;b.textContent="建立付款中…";
+  try{var r=await fetch("/api/reserve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});
+    var j=await r.json();if(j.url){location.href=j.url;return}alert(j.error||"建立付款失敗，請稍後再試");loadSlots()}
+  catch(e){alert("網路錯誤，請稍後再試")}
+  b.disabled=false;b.textContent="LINE Pay 支付訂金"};
+</script>
+</body>
+</html>
