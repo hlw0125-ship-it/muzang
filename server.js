@@ -16,8 +16,15 @@ app.use(express.json({ limit: '20kb' }));
 
 // ---- 儲存（Supabase / PostgreSQL）----
 const { Pool } = require('pg');
-if (!process.env.DATABASE_URL) { console.error('缺少環境變數 DATABASE_URL'); process.exit(1); }
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 });
+const E = process.env;
+const T = v => String(v || '').trim();
+// 兩種設定方式擇一：DB_HOST / DB_USER / DB_PASSWORD（建議，不怕密碼有特殊字元），或 DATABASE_URL
+if (!E.DB_HOST && !E.DATABASE_URL) { console.error('缺少資料庫設定：請設定 DB_HOST、DB_USER、DB_PASSWORD（或 DATABASE_URL）'); process.exit(1); }
+const pool = new Pool(Object.assign(
+  E.DB_HOST
+    ? { host: T(E.DB_HOST), port: Number(T(E.DB_PORT)) || 5432, user: T(E.DB_USER), password: E.DB_PASSWORD, database: T(E.DB_NAME) || 'postgres' }
+    : { connectionString: T(E.DATABASE_URL) },
+  { ssl: { rejectUnauthorized: false }, max: 5 }));
 const ready = pool.query('create table if not exists reservations (id text primary key, data jsonb not null, created_at timestamptz default now())');
 async function load(c = pool) { const r = await c.query('select data from reservations'); return r.rows.map(x => x.data); }
 async function put(r, c = pool) { await c.query('insert into reservations (id, data) values ($1, $2) on conflict (id) do update set data = $2', [r.id, r]); }
@@ -239,4 +246,4 @@ app.put('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
 }));
 
 ready.then(() => app.listen(process.env.PORT || 3000, () => console.log('muzang up, LINE Pay env:', LINEPAY_ENV)))
-  .catch(e => { console.error('資料庫連線失敗', e.message); process.exit(1); });
+  .catch(e => { console.error('資料庫連線失敗', e.message, '| 使用者:', pool.options.user, '| 主機:', pool.options.host); process.exit(1); });
