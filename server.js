@@ -1,14 +1,12 @@
 // 沐藏料理所：訂位（含席次管理）+ LINE Pay 訂金 + 後台
 const express = require('express');
 const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
 
 const { LINEPAY_CHANNEL_ID, LINEPAY_CHANNEL_SECRET, BASE_URL, ADMIN_PASSWORD,
   LINEPAY_ENV = 'sandbox', LINE_OA_ID = '@371oexcl' } = process.env;
 const LP_HOST = LINEPAY_ENV === 'production' ? 'https://api-pay.line.me' : 'https://sandbox-api-pay.line.me';
 const DEPOSIT = 1000, CAP = 8, HOLD_MS = 15 * 60 * 1000;
-const FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 const MSG_GROUP = '8 位以上團體訂位，請來電聯繫沐藏料理所，由專人協助安排。';
 const MSG_OTHER = '此日期或時段不在線上開放範圍。若您希望預約其他用餐時段，請透過官方 LINE（https://lin.ee/pOnRuXSY）或電話 0983-629-986 聯繫沐藏料理所，我們將由專人協助安排。';
 const STATUS = ['inquiry', 'pending', 'paid', 'cancelled', 'failed'];
@@ -16,10 +14,25 @@ const STATUS = ['inquiry', 'pending', 'paid', 'cancelled', 'failed'];
 const app = express();
 app.use(express.json({ limit: '20kb' }));
 
-// ---- 儲存 ----
-function load() { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { return []; } }
-function save(l) { fs.writeFileSync(FILE + '.tmp', JSON.stringify(l)); fs.renameSync(FILE + '.tmp', FILE); }
-function update(id, fn) { const l = load(); const r = l.find(x => x.id === id); if (r) { fn(r); save(l); } return r; }
+// ---- 儲存（Supabase / PostgreSQL）----
+const { Pool } = require('pg');
+if (!process.env.DATABASE_URL) { console.error('缺少環境變數 DATABASE_URL'); process.exit(1); }
+const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 });
+const ready = pool.query('create table if not exists reservations (id text primary key, data jsonb not null, created_at timestamptz default now())');
+async function load(c = pool) { const r = await c.query('select data from reservations'); return r.rows.map(x => x.data); }
+async function put(r, c = pool) { await c.query('insert into reservations (id, data) values ($1, $2) on conflict (id) do update set data = $2', [r.id, r]); }
+async function update(id, fn) {
+  const q = await pool.query('select data from reservations where id = $1', [id]);
+  if (!q.rows.length) return null;
+  const d = q.rows[0].data; fn(d); await put(d); return d;
+}
+// 交易 + 鎖：同一時間只有一個請求能檢查並寫入席次，避免超收
+async function tx(fn) {
+  const c = await pool.connect();
+  try { await c.query('begin'); await c.query('select pg_advisory_xact_lock(7001)'); const out = await fn(c); await c.query('commit'); return out; }
+  catch (e) { await c.query('rollback'); throw e; } finally { c.release(); }
+}
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(e => { console.error(e); res.status(500).json({ error: '系統忙碌，請稍後再試' }); });
 
 // ---- 時段與席次 ----
 const tw = (addDays = 0) => new Date(Date.now() + 8 * 3600e3 + addDays * 86400e3).toISOString().slice(0, 10);
@@ -36,12 +49,12 @@ function holds(r) { return r.status === 'paid' || (r.status === 'pending' && (r.
 function occupied(list, date, time, exceptId) {
   return list.filter(r => r.date === date && r.time === time && r.id !== exceptId && holds(r)).reduce((a, r) => a + r.people, 0);
 }
-app.get('/api/slots', (req, res) => {
+app.get('/api/slots', wrap(async (req, res) => {
   const date = String(req.query.date || '');
-  const list = load();
+  const list = await load();
   const slots = slotsFor(date).map(t => ({ time: t, remaining: Math.max(0, CAP - occupied(list, date, t)) }));
   res.json({ date, cap: CAP, open: date >= tw(1) && slots.length > 0, tooSoon: validDate(date) && date < tw(1), slots });
-});
+}));
 
 // ---- LINE Pay ----
 async function linepay(uri, body) {
@@ -90,80 +103,76 @@ function check(r) {
 }
 
 // 網站訂位 + LINE Pay 訂金
-app.post('/api/reserve', async (req, res) => {
-  try {
-    if (!LINEPAY_CHANNEL_ID || !LINEPAY_CHANNEL_SECRET || !BASE_URL) return res.status(503).json({ error: '付款功能尚未設定完成' });
-    const r = build(req.body || {}, '網站訂位', 'pending');
-    const err = check(r);
-    if (err) return res.status(400).json({ error: err });
-    // 檢查席次並保留（同步完成，避免超收）
-    const list = load();
-    const rem = CAP - occupied(list, r.date, r.time);
-    if (rem <= 0) return res.status(409).json({ error: '該時段已額滿，請選擇其他時段' });
-    if (r.people > rem) return res.status(409).json({ error: '該時段僅剩 ' + rem + ' 位，請調整人數或選擇其他時段' });
-    list.push(r); save(list);
-
-    const out = await linepay('/v3/payments/request', {
-      amount: r.amount, currency: 'TWD', orderId: r.id,
-      packages: [{ id: r.id, amount: r.amount, products: [{ name: '沐藏料理所 訂位訂金', quantity: r.people, price: DEPOSIT }] }],
-      redirectUrls: { confirmUrl: BASE_URL + '/linepay/confirm', cancelUrl: BASE_URL + '/linepay/cancel?orderId=' + r.id },
-    });
-    if (out.returnCode !== '0000') {
-      console.error('LINE Pay request failed', out.returnCode, out.returnMessage);
-      update(r.id, x => { x.status = 'failed'; });
-      return res.status(502).json({ error: '建立付款失敗（' + out.returnCode + '），請稍後再試或改用官方 LINE 聯繫' });
-    }
-    update(r.id, x => { x.transactionId = String(out.info.transactionId); });
-    res.json({ url: out.info.paymentUrl.web });
-  } catch (e) { console.error(e); res.status(500).json({ error: '系統忙碌，請稍後再試' }); }
-});
+app.post('/api/reserve', wrap(async (req, res) => {
+  if (!LINEPAY_CHANNEL_ID || !LINEPAY_CHANNEL_SECRET || !BASE_URL) return res.status(503).json({ error: '付款功能尚未設定完成' });
+  const r = build(req.body || {}, '網站訂位', 'pending');
+  const err = check(r);
+  if (err) return res.status(400).json({ error: err });
+  // 檢查席次並保留（交易內完成，避免超收）
+  const full = await tx(async c => {
+    const rem = CAP - occupied(await load(c), r.date, r.time);
+    if (rem <= 0) return '該時段已額滿，請選擇其他時段';
+    if (r.people > rem) return '該時段僅剩 ' + rem + ' 位，請調整人數或選擇其他時段';
+    await put(r, c); return '';
+  });
+  if (full) return res.status(409).json({ error: full });
+  const out = await linepay('/v3/payments/request', {
+    amount: r.amount, currency: 'TWD', orderId: r.id,
+    packages: [{ id: r.id, amount: r.amount, products: [{ name: '沐藏料理所 訂位訂金', quantity: r.people, price: DEPOSIT }] }],
+    redirectUrls: { confirmUrl: BASE_URL + '/linepay/confirm', cancelUrl: BASE_URL + '/linepay/cancel?orderId=' + r.id },
+  });
+  if (out.returnCode !== '0000') {
+    console.error('LINE Pay request failed', out.returnCode, out.returnMessage);
+    await update(r.id, x => { x.status = 'failed'; });
+    return res.status(502).json({ error: '建立付款失敗（' + out.returnCode + '），請稍後再試或改用官方 LINE 聯繫' });
+  }
+  await update(r.id, x => { x.transactionId = String(out.info.transactionId); });
+  res.json({ url: out.info.paymentUrl.web });
+}));
 
 // 「傳送訂位資料至官方 LINE」：留一筆洽詢紀錄（不佔席次）
-app.post('/api/inquiry', (req, res) => {
-  try {
-    const r = build(req.body || {}, '官網表單→官方LINE', 'inquiry');
-    if (!r.name || !r.phone || !validDate(r.date)) return res.status(400).json({ error: '資料不完整' });
-    if (!Number.isInteger(r.people) || r.people < 1 || r.people > 50) return res.status(400).json({ error: '人數錯誤' });
-    const l = load(); l.push(r); save(l);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: 'error' }); }
-});
+app.post('/api/inquiry', wrap(async (req, res) => {
+  const r = build(req.body || {}, '官網表單→官方LINE', 'inquiry');
+  if (!r.name || !r.phone || !validDate(r.date)) return res.status(400).json({ error: '資料不完整' });
+  if (!Number.isInteger(r.people) || r.people < 1 || r.people > 50) return res.status(400).json({ error: '人數錯誤' });
+  await put(r); res.json({ ok: true });
+}));
 
 app.get('/linepay/confirm', async (req, res) => {
   const { orderId, transactionId } = req.query;
-  const list = load();
+  const list = await load().catch(() => []);
   const r = list.find(x => x.id === orderId);
   if (!r || String(r.transactionId) !== String(transactionId)) return res.redirect('/result?s=err');
   if (r.status === 'paid') return res.redirect('/result?s=ok&o=' + r.id + '&k=' + r.token);
   // 保留逾時後才付款：確認席次還夠，否則不扣款
   if (!holds(r) && CAP - occupied(list, r.date, r.time, r.id) < r.people) {
-    update(r.id, x => { x.status = 'failed'; });
+    await update(r.id, x => { x.status = 'failed'; });
     return res.redirect('/result?s=full');
   }
   try {
     const out = await linepay(`/v3/payments/${transactionId}/confirm`, { amount: r.amount, currency: 'TWD' });
     if (out.returnCode === '0000') {
-      update(r.id, x => { x.status = 'paid'; x.paidAt = new Date().toISOString(); });
+      await update(r.id, x => { x.status = 'paid'; x.paidAt = new Date().toISOString(); });
       return res.redirect('/result?s=ok&o=' + r.id + '&k=' + r.token);
     }
     console.error('LINE Pay confirm failed', out.returnCode, out.returnMessage);
-    update(r.id, x => { x.status = 'failed'; });
+    await update(r.id, x => { x.status = 'failed'; });
   } catch (e) { console.error(e); }
   res.redirect('/result?s=err');
 });
-app.get('/linepay/cancel', (req, res) => {
-  update(String(req.query.orderId), x => { if (x.status === 'pending') x.status = 'cancelled'; });
+app.get('/linepay/cancel', wrap(async (req, res) => {
+  await update(String(req.query.orderId), x => { if (x.status === 'pending') x.status = 'cancelled'; });
   res.redirect('/result?s=cancel');
-});
+}));
 
 function summary(r, title) {
   return [title, '訂位人：' + r.name, '電話：' + r.phone, '日期：' + r.date + ' ' + r.time, '人數：' + r.people + '位',
     '套餐：' + r.pkg, '忌口或過敏：' + (r.allergy || '無'), '餐敘目的：' + r.purpose, '其他備註：' + (r.note || '無'),
     '訂金：$' + r.amount.toLocaleString(), '編號：' + r.id].join('\n');
 }
-app.get('/result', (req, res) => {
+app.get('/result', wrap(async (req, res) => {
   const s = req.query.s;
-  const r = load().find(x => x.id === req.query.o && x.token === req.query.k);
+  const r = (await load()).find(x => x.id === req.query.o && x.token === req.query.k);
   const t = { ok: ['訂金已收到', '席位已為您保留，期待與您相聚。訂位編號：' + String(req.query.o || '').replace(/[^\w]/g, '')],
     cancel: ['已取消付款', '訂位尚未成立，如需訂位請重新操作。'],
     full: ['該時段席位已被預訂', '本次付款未成立（未扣款），請回訂位頁重新選擇時段。'],
@@ -178,7 +187,7 @@ app.get('/result', (req, res) => {
 <h2>${t[0]}</h2><p>${t[1]}</p>${btn}
 <p><a href="https://line.me/R/ti/p/${encodeURIComponent(LINE_OA_ID)}">返回官方 LINE</a></p>
 <p style="color:#888">預約專線 0983-629-986</p></body>`);
-});
+}));
 
 // ---- 後台 API ----
 const FIELDS = ['name', 'phone', 'date', 'time', 'people', 'price', 'note', 'allergy', 'purpose', 'pkg', 'status', 'paidAt', 'handler', 'contactDate', 'source'];
@@ -199,25 +208,35 @@ function adminCheck(r, list, force) {
   }
   return null;
 }
-app.get('/api/admin/reservations', auth, (req, res) => res.json(load().reverse()));
-app.post('/api/admin/reservations', auth, (req, res) => {
-  const b = req.body || {}, list = load();
+app.get('/api/admin/reservations', auth, wrap(async (req, res) => res.json((await load()).reverse())));
+app.post('/api/admin/reservations', auth, wrap(async (req, res) => {
+  const b = req.body || {};
   const r = { id: 'MZ' + Date.now() + crypto.randomInt(100, 999), token: crypto.randomBytes(8).toString('hex'), created: new Date().toISOString(),
     manual: true, status: 'pending', amount: 0, paidAt: '', handler: '', contactDate: tw(), source: '', pkg: '', purpose: '', allergy: '', note: '', price: 0 };
   applyFields(r, b);
   if (r.status === 'paid' && !r.paidAt) r.paidAt = new Date().toISOString();
-  const e = adminCheck(r, list, b.force); if (e) return res.status(e[0]).json({ error: e[1] });
-  list.push(r); save(list); res.json(r);
-});
-app.put('/api/admin/reservations/:id', auth, (req, res) => {
-  const b = req.body || {}, list = load(), r = list.find(x => x.id === req.params.id);
-  if (!r) return res.status(404).json({ error: 'not found' });
-  const was = r.status;
-  applyFields(r, b);
-  if (r.status === 'paid' && !r.paidAt) r.paidAt = new Date().toISOString();
-  if (['pending', 'paid'].includes(r.status) && was === 'inquiry') r.manual = true;
-  const e = adminCheck(r, list, b.force); if (e) return res.status(e[0]).json({ error: e[1] });
-  save(list); res.json(r);
-});
+  const out = await tx(async c => {
+    const e = adminCheck(r, await load(c), b.force); if (e) return e;
+    await put(r, c); return null;
+  });
+  if (out) return res.status(out[0]).json({ error: out[1] });
+  res.json(r);
+}));
+app.put('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
+  const b = req.body || {};
+  const out = await tx(async c => {
+    const list = await load(c), r = list.find(x => x.id === req.params.id);
+    if (!r) return [404, 'not found'];
+    const was = r.status;
+    applyFields(r, b);
+    if (r.status === 'paid' && !r.paidAt) r.paidAt = new Date().toISOString();
+    if (['pending', 'paid'].includes(r.status) && was === 'inquiry') r.manual = true;
+    const e = adminCheck(r, list, b.force); if (e) return e;
+    await put(r, c); return r;
+  });
+  if (Array.isArray(out)) return res.status(out[0]).json({ error: out[1] });
+  res.json(out);
+}));
 
-app.listen(process.env.PORT || 3000, () => console.log('muzang up, LINE Pay env:', LINEPAY_ENV));
+ready.then(() => app.listen(process.env.PORT || 3000, () => console.log('muzang up, LINE Pay env:', LINEPAY_ENV)))
+  .catch(e => { console.error('資料庫連線失敗', e.message); process.exit(1); });
