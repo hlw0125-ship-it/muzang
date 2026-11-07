@@ -245,5 +245,10 @@ app.put('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
   res.json(out);
 }));
 
+app.delete('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
+  const r = await pool.query('delete from reservations where id = $1', [req.params.id]);
+  res.json({ deleted: r.rowCount });
+}));
+
 ready.then(() => app.listen(process.env.PORT || 3000, () => console.log('muzang up, LINE Pay env:', LINEPAY_ENV)))
   .catch(e => { console.error('資料庫連線失敗', e.message, '| 使用者:', pool.options.user, '| 主機:', pool.options.host); process.exit(1); });
