@@ -25,7 +25,8 @@ const pool = new Pool(Object.assign(
     ? { host: T(E.DB_HOST), port: Number(T(E.DB_PORT)) || 5432, user: T(E.DB_USER), password: E.DB_PASSWORD, database: T(E.DB_NAME) || 'postgres' }
     : { connectionString: T(E.DATABASE_URL) },
   { ssl: { rejectUnauthorized: false }, max: 5 }));
-const ready = pool.query('create table if not exists reservations (id text primary key, data jsonb not null, created_at timestamptz default now())');
+const ready = pool.query('create table if not exists reservations (id text primary key, data jsonb not null, created_at timestamptz default now())')
+  .then(() => pool.query('create table if not exists sales (id text primary key, data jsonb not null, created_at timestamptz default now())'));
 async function load(c = pool) { const r = await c.query('select data from reservations'); return r.rows.map(x => x.data); }
 async function put(r, c = pool) { await c.query('insert into reservations (id, data) values ($1, $2) on conflict (id) do update set data = $2', [r.id, r]); }
 async function update(id, fn) {
@@ -87,6 +88,7 @@ const page = f => (req, res) => res.sendFile(path.join(__dirname, f));
 app.get('/', page('index.html'));
 app.get('/pos.html', auth, page('pos.html'));
 app.get('/admin', auth, page('admin.html'));
+app.get('/sales', auth, page('sales.html'));
 
 // ---- 客人訂位資料 ----
 const clean = s => String(s || '').trim().slice(0, 200);
@@ -243,6 +245,35 @@ app.put('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
   });
   if (Array.isArray(out)) return res.status(out[0]).json({ error: out[1] });
   res.json(out);
+}));
+
+// ---- POS 銷售紀錄（存進 Supabase）----
+const n0 = v => Math.round(Number(v) || 0);
+app.post('/api/pos/sales', auth, wrap(async (req, res) => {
+  const b = req.body || {};
+  const items = Array.isArray(b.items) ? b.items.slice(0, 50).map(i => ({ n: String(i.n || '').slice(0, 100), p: Math.max(0, n0(i.p)), q: Math.max(1, n0(i.q)) })) : [];
+  if (!items.length) return res.status(400).json({ error: '沒有品項' });
+  const a = b.adj || {};
+  let at = new Date(b.at);
+  if (isNaN(at) || at.getTime() > Date.now() + 36e5 || at.getTime() < Date.now() - 90 * 864e5) at = new Date();
+  const loc = new Date(at.getTime() + 8 * 3600e3).toISOString();
+  const sub = items.reduce((x, i) => x + i.p * i.q, 0);
+  const sale = { id: String(b.id || 'S' + Date.now() + crypto.randomInt(100, 999)).replace(/[^\w-]/g, '').slice(0, 40),
+    at: at.toISOString(), date: loc.slice(0, 10), time: loc.slice(11, 16), items, sub,
+    svc: n0(a.svc), d9: Math.min(0, n0(a.d9)), cp: Math.min(0, n0(a.cp)), bs: Math.min(0, n0(a.bs)), pay: String(b.pay || '').slice(0, 20) };
+  sale.total = Math.max(0, sub + sale.svc + sale.d9 + sale.cp + sale.bs);
+  await pool.query('insert into sales (id, data) values ($1, $2) on conflict (id) do nothing', [sale.id, sale]);
+  res.json({ ok: true, id: sale.id });
+}));
+app.get('/api/pos/sales', auth, wrap(async (req, res) => {
+  const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+  const from = ok(req.query.from) ? req.query.from : tw(), to = ok(req.query.to) ? req.query.to : tw();
+  const r = await pool.query("select data from sales where data->>'date' >= $1 and data->>'date' <= $2 order by data->>'at' desc limit 3000", [from, to]);
+  res.json(r.rows.map(x => x.data));
+}));
+app.delete('/api/pos/sales/:id', auth, wrap(async (req, res) => {
+  const r = await pool.query('delete from sales where id = $1', [req.params.id]);
+  res.json({ deleted: r.rowCount });
 }));
 
 app.delete('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
