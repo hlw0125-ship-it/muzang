@@ -69,8 +69,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 
 
 <section id="v3" class="hide">
-  <div class="card"><b>今日營收</b><div class="tot" id="sum">$0</div><div id="sales"></div><button class="btn ghost" id="exp">匯出今日銷售 CSV</button></div>
-  
+  <div class="card"><b>銷售紀錄</b><input type="date" id="sd" style="margin-top:8px"><div class="tot" id="sum">$0</div><div class="note" id="scnt"></div><div class="note" id="pnote" style="color:#c0392b"></div><div id="sales"></div><button class="btn ghost" id="exp">匯出 CSV</button></div>
 </section>
 
 <dialog id="dlg">
@@ -124,20 +123,43 @@ $("clear").onclick=function(){cart=[];resetAdj();rc()};
 ["cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$(i.slice(0,2)).checked=true;calc()}});
 calc();
 function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function uid(){return "S"+Date.now()+Math.floor(Math.random()*900+100)}
+function pend(){return ld("pend")}
+function twd(at){return new Date(new Date(at).getTime()+288e5).toISOString()}
+// 待上傳佇列：結帳先存本機，再傳到 Supabase；網路不穩會自動補傳
+function flush(){
+  var p=pend();if(!p.length)return Promise.resolve();
+  return p.reduce(function(chain,x){return chain.then(function(){
+    return fetch("/api/pos/sales",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)}).then(function(r){
+      if(r.ok||r.status===400)sv("pend",pend().filter(function(y){return y.id!==x.id}))})
+  }).catch(function(){})},Promise.resolve())}
+(function(){var o=ld("sales");if(!o.length)return;var p=pend();
+  o.forEach(function(x){try{p.push({id:"L"+x.d+x.time.replace(":","")+Math.floor(Math.random()*1e4),at:new Date(x.d+"T"+x.time+":00+08:00").toISOString(),items:x.items,adj:x.adj||{},total:x.total,pay:x.pay})}catch(e){}});
+  sv("pend",p);try{localStorage.removeItem("sales")}catch(e){}})();
 $("checkout").onclick=function(){
   if(!cart.length)return;
-  calc();var t=R.total,s=ld("sales");
-  s.push({d:today(),time:new Date().toTimeString().slice(0,5),items:cart,total:t,adj:R,pay:$("pay").value});
-  sv("sales",s);cart=[];resetAdj();rc();alert("結帳完成 "+money(t))};
+  calc();var sale={id:uid(),at:new Date().toISOString(),items:cart,adj:R,total:R.total,pay:$("pay").value};
+  var p=pend();p.push(sale);sv("pend",p);
+  var t=R.total;cart=[];resetAdj();rc();flush();alert("結帳完成 "+money(t))};
+window.addEventListener("online",flush);flush();setInterval(flush,60000);
+var LAST=[];
 function renderLog(){
-  var s=ld("sales").filter(function(x){return x.d==today()});
-  $("sum").textContent=money(s.reduce(function(a,x){return a+x.total},0));
-  $("sales").innerHTML=s.map(function(x){return '<div class="ln"><span>'+x.time+' '+esc(x.pay)+'<br><span class="note">'+x.items.map(function(c){return esc(c.n)+'×'+c.q}).join("、")+'</span></span><b>'+money(x.total)+'</b></div>'}).join("")||'<div class="note">今日尚無銷售</div>';
-}
+  var d=$("sd").value||today();
+  fetch("/api/pos/sales?from="+d+"&to="+d).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(db){draw_(d,db,true)}).catch(function(){draw_(d,[],false)})}
+function draw_(d,db,ok){
+  var ids={};db.forEach(function(x){ids[x.id]=1});
+  var loc=pend().filter(function(x){return !ids[x.id]&&twd(x.at).slice(0,10)===d}).map(function(x){var a=x.adj||{};return{id:x.id,date:d,time:twd(x.at).slice(11,16),items:x.items,sub:a.sub||0,svc:a.svc||0,d9:a.d9||0,cp:a.cp||0,bs:a.bs||0,total:x.total,pay:x.pay,unsynced:1}});
+  var rows=db.concat(loc).sort(function(a,b){return a.time<b.time?1:-1});LAST=rows;
+  $("sum").textContent=money(rows.reduce(function(a,x){return a+x.total},0));
+  $("scnt").textContent="共 "+rows.length+" 筆";
+  $("pnote").textContent=(ok?"":"目前無法連線，僅顯示本機暫存。")+(loc.length?loc.length+" 筆尚未同步，連線後會自動補傳。":"");
+  $("sales").innerHTML=rows.map(function(x){return '<div class="ln"><span>'+x.time+' '+esc(x.pay)+(x.unsynced?' <b style="color:#c0392b">（未同步）</b>':'')+'<br><span class="note">'+x.items.map(function(c){return esc(c.n)+'×'+c.q}).join("、")+'</span></span><b>'+money(x.total)+'</b></div>'}).join("")||'<div class="note">當天沒有銷售</div>'}
+$("sd").value=today();$("sd").onchange=renderLog;
 $("exp").onclick=function(){
-  var rows=["日期,時間,付款,品項,金額"];
-  ld("sales").filter(function(x){return x.d==today()}).forEach(function(x){rows.push([x.d,x.time,x.pay,'"'+x.items.map(function(c){return c.n+"x"+c.q}).join(" / ")+'"',x.total].join(","))});
-  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\ufeff"+encodeURIComponent(rows.join("\n"));a.download="sales-"+today()+".csv";a.click()};
+  var q=function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'};
+  var rows=["日期,時間,付款,品項,小計,服務費,9折,優惠券,招待,應收"];
+  LAST.forEach(function(x){rows.push([x.date,x.time,x.pay,x.items.map(function(c){return c.n+"x"+c.q}).join(" / "),x.sub,x.svc,x.d9,x.cp,x.bs,x.total].map(q).join(","))});
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\ufeff"+encodeURIComponent(rows.join("\n"));a.download="sales-"+($("sd").value||today())+".csv";a.click()};
 </script>
 </body>
 </html>
