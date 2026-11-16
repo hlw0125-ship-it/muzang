@@ -6,7 +6,9 @@ const path = require('path');
 const { LINEPAY_CHANNEL_ID, LINEPAY_CHANNEL_SECRET, BASE_URL, ADMIN_PASSWORD,
   LINEPAY_ENV = 'sandbox', LINE_OA_ID = '@371oexcl' } = process.env;
 const LP_HOST = LINEPAY_ENV === 'production' ? 'https://api-pay.line.me' : 'https://sandbox-api-pay.line.me';
-const DEPOSIT = 1000, CAP = 8, HOLD_MS = 15 * 60 * 1000;
+// 訂金每位金額。測試刷一元時，在 Render 暫時加上 DEPOSIT_PER_PERSON=1，測完務必刪除
+const DEPOSIT = Number(process.env.DEPOSIT_PER_PERSON) || 1000, CAP = 8, HOLD_MS = 15 * 60 * 1000;
+if (DEPOSIT !== 1000) console.warn('【注意】目前是測試金額：訂金每位 $' + DEPOSIT + '，測完請刪除 DEPOSIT_PER_PERSON');
 const MSG_GROUP = '8 位以上團體訂位，請來電聯繫沐藏料理所，由專人協助安排。';
 const MSG_OTHER = '此日期或時段不在線上開放範圍。若您希望預約其他用餐時段，請透過官方 LINE（https://lin.ee/pOnRuXSY）或電話 0983-629-986 聯繫沐藏料理所，我們將由專人協助安排。';
 const STATUS = ['inquiry', 'pending', 'paid', 'cancelled', 'failed'];
