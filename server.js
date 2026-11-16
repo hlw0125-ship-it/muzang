@@ -71,7 +71,9 @@ async function linepay(uri, body) {
   const res = await fetch(LP_HOST + uri, { method: 'POST', body: json, headers: {
     'Content-Type': 'application/json', 'X-LINE-ChannelId': LINEPAY_CHANNEL_ID,
     'X-LINE-Authorization-Nonce': nonce, 'X-LINE-Authorization': sig } });
-  return res.json();
+  // transactionId 是 19 位數字，超過 JavaScript 能精確表示的範圍，先轉成字串再解析，避免尾數被四捨五入
+  const text = await res.text();
+  return JSON.parse(text.replace(/"transactionId"\s*:\s*(\d+)/g, '"transactionId":"$1"'));
 }
 
 // ---- 管理員驗證 ----
@@ -151,7 +153,10 @@ app.get('/linepay/confirm', async (req, res) => {
   const { orderId, transactionId } = req.query;
   const list = await load().catch(() => []);
   const r = list.find(x => x.id === orderId);
-  if (!r || String(r.transactionId) !== String(transactionId)) return res.redirect('/result?s=err');
+  if (!r || String(r.transactionId) !== String(transactionId)) {
+    console.error('LINE Pay confirm: 找不到訂單或交易編號不符', orderId, transactionId, r && r.transactionId);
+    return res.redirect('/result?s=err');
+  }
   if (r.status === 'paid') return res.redirect('/result?s=ok&o=' + r.id + '&k=' + r.token);
   // 保留逾時後才付款：確認席次還夠，否則不扣款
   if (!holds(r) && CAP - occupied(list, r.date, r.time, r.id) < r.people) {
