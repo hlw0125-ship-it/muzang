@@ -224,7 +224,11 @@ function adminCheck(r, list, force) {
   }
   return null;
 }
-app.get('/api/admin/reservations', auth, wrap(async (req, res) => res.json((await load()).reverse())));
+app.get('/api/admin/reservations', auth, wrap(async (req, res) => {
+  let l = (await load()).reverse();
+  if (validDate(req.query.date)) l = l.filter(x => x.date === req.query.date);
+  res.json(l);
+}));
 app.post('/api/admin/reservations', auth, wrap(async (req, res) => {
   const b = req.body || {};
   const r = { id: 'MZ' + Date.now() + crypto.randomInt(100, 999), token: crypto.randomBytes(8).toString('hex'), created: new Date().toISOString(),
