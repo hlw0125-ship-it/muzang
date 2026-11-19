@@ -43,7 +43,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <body>
 <h1>沐藏料理所</h1>
 <div class="sub">板前無菜單料理 ・ POS 收銀</div>
-<div class="tabs"><button id="t1" class="on">POS 點餐</button><button id="t3">紀錄</button></div>
+<div class="tabs"><button id="t1" class="on">POS 點餐</button><button id="t4">今日訂位</button><button id="t3">紀錄</button></div>
 
 <section id="v1">
   <div class="card">
@@ -72,6 +72,11 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="card"><b>銷售紀錄</b><input type="date" id="sd" style="margin-top:8px"><div class="tot" id="sum">$0</div><div class="note" id="scnt"></div><div class="note" id="pnote" style="color:#c0392b"></div><div id="sales"></div><button class="btn ghost" id="exp">匯出 CSV</button></div>
 </section>
 
+<section id="v4" class="hide">
+  <div class="card"><b>今日訂位</b><div class="note" id="rsum" style="margin:6px 0"></div>
+    <button class="btn ghost" id="rref" style="margin:0 0 8px">重新整理</button><div id="rlist"></div></div>
+</section>
+
 <dialog id="dlg">
   <b id="dn"></b>
   <div id="dw"><label>備註名稱</label><input id="dwn" placeholder="例：慶生加點、純米大吟釀"></div>
@@ -87,8 +92,8 @@ function ld(k){try{return JSON.parse(localStorage.getItem(k)||"[]")}catch(e){ret
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 var cart=[],cur=null;
 var money=function(n){return "$"+Number(n).toLocaleString()};
-function show(n){[1,3].forEach(function(i){$("v"+i).classList.toggle("hide",i!=n);$("t"+i).classList.toggle("on",i==n)});if(n==3)renderLog()}
-[1,3].forEach(function(i){$("t"+i).onclick=function(){show(i)}});
+function show(n){[1,3,4].forEach(function(i){$("v"+i).classList.toggle("hide",i!=n);$("t"+i).classList.toggle("on",i==n)});if(n==3)renderLog();if(n==4)loadRes()}
+[1,3,4].forEach(function(i){$("t"+i).onclick=function(){show(i)}});
 document.querySelectorAll(".item").forEach(function(b){b.onclick=function(){
   cur=b;$("dn").textContent=b.dataset.n;$("dw").classList.toggle("hide",!b.dataset.wine);
   $("dwn").value="";$("dp").value=b.dataset.p>0?b.dataset.p:"";$("dq").value=1;$("dlg").showModal()}});
@@ -160,6 +165,39 @@ $("exp").onclick=function(){
   var rows=["日期,時間,付款,品項,小計,服務費,9折,優惠券,招待,應收"];
   LAST.forEach(function(x){rows.push([x.date,x.time,x.pay,x.items.map(function(c){return c.n+"x"+c.q}).join(" / "),x.sub,x.svc,x.d9,x.cp,x.bs,x.total].map(q).join(","))});
   var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\ufeff"+encodeURIComponent(rows.join("\n"));a.download="sales-"+($("sd").value||today())+".csv";a.click()};
+
+// ---- 今日訂位（讀取後台資料）----
+var RES=[];
+var RST={paid:"已付訂金",pending:"待付訂金"};
+function loadRes(){
+  $("rsum").textContent="讀取中…";
+  fetch("/api/admin/reservations?date="+today()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
+    RES=d.filter(function(x){return x.status==="paid"||x.status==="pending"}).sort(function(a,b){return a.time<b.time?-1:1});
+    drawRes()}).catch(function(){RES=[];$("rsum").textContent="無法讀取訂位，請檢查網路後按重新整理";$("rlist").innerHTML=""})}
+function mk(tag,txt,st){var e=document.createElement(tag);if(txt!=null)e.textContent=txt;if(st)e.style.cssText=st;return e}
+function drawRes(){
+  var l=$("rlist");l.innerHTML="";
+  var ppl=RES.reduce(function(a,x){return a+x.people},0);
+  $("rsum").textContent="今天 "+today()+"｜共 "+RES.length+" 組、"+ppl+" 位";
+  if(!RES.length){l.appendChild(mk("div","今天沒有訂位","color:var(--mute)"));return}
+  RES.forEach(function(x){
+    var c=mk("div",null,"border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;line-height:1.7;font-size:15px");
+    var h=mk("div");h.appendChild(mk("b",x.time+"　"+x.name+"　"+x.people+"位"));
+    h.appendChild(mk("span"," "+(RST[x.status]||x.status),"margin-left:6px;padding:1px 8px;border-radius:99px;font-size:13px;color:#fff;background:"+(x.status==="paid"?"#06a050":"#c98a00")));c.appendChild(h);
+    var p=mk("div","電話：");var a=mk("a",x.phone);a.href="tel:"+String(x.phone).replace(/[^\d+]/g,"");a.style.color="var(--acc)";p.appendChild(a);c.appendChild(p);
+    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(x.people*1000).toLocaleString()+(x.status==="paid"?" 已付":" 未付")));
+    var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
+    if(nt)c.appendChild(mk("div",nt,"color:var(--mute);font-size:14px"));
+    var b=mk("button","帶入結帳");b.className="btn ghost";b.style.marginTop="6px";
+    b.onclick=function(){toCart(x)};c.appendChild(b);l.appendChild(c)})}
+function toCart(x){
+  var k=String(x.pkg||"");
+  if(k.indexOf("2,000")>=0)cart.push({n:"山海旬味・料理物語",p:2000,q:x.people});
+  else if(k.indexOf("1,880")>=0)cart.push({n:"山海旬味・經典懷石",p:1880,q:x.people});
+  else cart.push({n:"沐藏客製化預定（"+x.name+"）",p:Number(x.price)||0,q:1});
+  rc();show(1);
+  if(x.status==="paid")alert(x.name+" 已付訂金 $"+(x.people*1000).toLocaleString()+"，結帳時可在「優惠券」欄輸入金額扣除。")}
+$("rref").onclick=loadRes;
 </script>
 </body>
 </html>
