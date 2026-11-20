@@ -87,6 +87,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </dialog>
 
 <script>
+if(/github\.io$/.test(location.hostname)){location.replace("https://muzang.onrender.com/pos.html")}
 var $=function(i){return document.getElementById(i)};
 function ld(k){try{return JSON.parse(localStorage.getItem(k)||"[]")}catch(e){return []}}
 function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -168,6 +169,7 @@ $("exp").onclick=function(){
 
 // ---- 今日訂位（讀取後台資料）----
 var RES=[];
+function dep(x){return x.amount==null?x.people*1000:x.amount}
 var RST={paid:"已付訂金",pending:"待付訂金"};
 function loadRes(){
   $("rsum").textContent="讀取中…";
@@ -185,7 +187,7 @@ function drawRes(){
     var h=mk("div");h.appendChild(mk("b",x.time+"　"+x.name+"　"+x.people+"位"));
     h.appendChild(mk("span"," "+(RST[x.status]||x.status),"margin-left:6px;padding:1px 8px;border-radius:99px;font-size:13px;color:#fff;background:"+(x.status==="paid"?"#06a050":"#c98a00")));c.appendChild(h);
     var p=mk("div","電話：");var a=mk("a",x.phone);a.href="tel:"+String(x.phone).replace(/[^\d+]/g,"");a.style.color="var(--acc)";p.appendChild(a);c.appendChild(p);
-    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(x.people*1000).toLocaleString()+(x.status==="paid"?" 已付":" 未付")));
+    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(dep(x)).toLocaleString()+(x.status==="paid"?" 已付":" 未付")));
     var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
     if(nt)c.appendChild(mk("div",nt,"color:var(--mute);font-size:14px"));
     var b=mk("button","帶入結帳");b.className="btn ghost";b.style.marginTop="6px";
@@ -196,7 +198,7 @@ function toCart(x){
   else if(k.indexOf("1,880")>=0)cart.push({n:"山海旬味・經典懷石",p:1880,q:x.people});
   else cart.push({n:"沐藏客製化預定（"+x.name+"）",p:Number(x.price)||0,q:1});
   rc();show(1);
-  if(x.status==="paid")alert(x.name+" 已付訂金 $"+(x.people*1000).toLocaleString()+"，結帳時可在「優惠券」欄輸入金額扣除。")}
+  if(x.status==="paid")alert(x.name+" 已付訂金 $"+(dep(x)).toLocaleString()+"，結帳時可在「優惠券」欄輸入金額扣除。")}
 $("rref").onclick=loadRes;
 </script>
 </body>
