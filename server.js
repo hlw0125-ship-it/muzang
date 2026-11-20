@@ -211,7 +211,9 @@ function applyFields(r, b) {
   FIELDS.forEach(k => { if (b[k] !== undefined) r[k] = b[k]; });
   ['name', 'phone', 'date', 'time', 'note', 'allergy', 'purpose', 'pkg', 'paidAt', 'handler', 'contactDate', 'source'].forEach(k => { r[k] = String(r[k] || '').slice(0, 300); });
   r.people = Math.round(Number(r.people)); r.price = Math.max(0, Number(r.price) || 0);
-  r.amount = (r.people || 0) * DEPOSIT;
+  const ba = b.amount;  // 訂金可自訂；沒填才用「人數 × 每位訂金」
+  if (ba !== undefined && ba !== null && ba !== '' && Number.isFinite(Number(ba))) r.amount = Math.max(0, Math.round(Number(ba)));
+  else if (!(Number(r.amount) > 0)) r.amount = (r.people || 0) * DEPOSIT;
 }
 function adminCheck(r, list, force) {
   if (!r.name) return [400, '請填寫訂位人'];
