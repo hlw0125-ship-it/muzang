@@ -170,6 +170,8 @@ $("exp").onclick=function(){
 // ---- 今日訂位（讀取後台資料）----
 var RES=[];
 function dep(x){return x.amount==null?x.people*1000:x.amount}
+function dm(x){return x.depMethod||(x.transactionId?"linepay":"transfer")}
+var DMN={linepay:"LINE Pay",transfer:"轉帳"};
 var RST={paid:"已付訂金",pending:"待付訂金"};
 function loadRes(){
   $("rsum").textContent="讀取中…";
@@ -180,18 +182,27 @@ function mk(tag,txt,st){var e=document.createElement(tag);if(txt!=null)e.textCon
 function drawRes(){
   var l=$("rlist");l.innerHTML="";
   var ppl=RES.reduce(function(a,x){return a+x.people},0);
-  $("rsum").textContent="今天 "+today()+"｜共 "+RES.length+" 組、"+ppl+" 位";
+  var lp=0,tr=0;RES.forEach(function(x){if(x.status==="paid"){if(dm(x)==="linepay")lp+=dep(x);else tr+=dep(x)}});
+  $("rsum").textContent="今天 "+today()+"｜共 "+RES.length+" 組、"+ppl+" 位｜已收訂金 LINE Pay $"+lp.toLocaleString()+"、轉帳 $"+tr.toLocaleString();
   if(!RES.length){l.appendChild(mk("div","今天沒有訂位","color:var(--mute)"));return}
   RES.forEach(function(x){
     var c=mk("div",null,"border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;line-height:1.7;font-size:15px");
     var h=mk("div");h.appendChild(mk("b",x.time+"　"+x.name+"　"+x.people+"位"));
     h.appendChild(mk("span"," "+(RST[x.status]||x.status),"margin-left:6px;padding:1px 8px;border-radius:99px;font-size:13px;color:#fff;background:"+(x.status==="paid"?"#06a050":"#c98a00")));c.appendChild(h);
     var p=mk("div","電話：");var a=mk("a",x.phone);a.href="tel:"+String(x.phone).replace(/[^\d+]/g,"");a.style.color="var(--acc)";p.appendChild(a);c.appendChild(p);
-    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(dep(x)).toLocaleString()+(x.status==="paid"?" 已付":" 未付")));
+    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(dep(x)).toLocaleString()+(x.status==="paid"?" 已付（"+DMN[dm(x)]+"）":" 未付")));
     var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
     if(nt)c.appendChild(mk("div",nt,"color:var(--mute);font-size:14px"));
     var b=mk("button","帶入結帳");b.className="btn ghost";b.style.marginTop="6px";
-    b.onclick=function(){toCart(x)};c.appendChild(b);l.appendChild(c)})}
+    b.onclick=function(){toCart(x)};c.appendChild(b);
+    if(x.status!=="paid"){["transfer","linepay"].forEach(function(m){
+      var q=mk("button","收訂金・"+DMN[m]);q.className="btn ghost";q.style.cssText="margin-top:6px;margin-left:6px;width:auto;padding:12px 14px";
+      q.onclick=function(){collect(x,m)};c.appendChild(q)})}
+    l.appendChild(c)})}
+function collect(x,m){
+  if(!confirm("確認已收到 "+x.name+" 的訂金 $"+dep(x).toLocaleString()+"？\n付款方式：「"+DMN[m]+"」"))return;
+  fetch("/api/admin/reservations/"+x.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"paid",depMethod:m})})
+    .then(function(r){if(!r.ok)throw 0;loadRes()}).catch(function(){alert("儲存失敗，請檢查網路後再試")})}
 function toCart(x){
   var k=String(x.pkg||"");
   if(k.indexOf("2,000")>=0)cart.push({n:"山海旬味・料理物語",p:2000,q:x.people});
