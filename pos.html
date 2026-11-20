@@ -36,6 +36,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .sw{display:flex;align-items:center;gap:8px;color:var(--ink);font-size:16px;margin:10px 0}
 .sw input[type=checkbox]{width:22px;height:22px;flex:none}
 .sw input[type=number]{width:120px;margin-left:auto;padding:8px}
+.sw select{width:96px;flex:none;padding:8px 4px;min-height:0}
 .sw b{margin-left:auto}
 .sw input[type=number]+b{margin-left:0}
 </style>
@@ -57,6 +58,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="ln"><span>小計</span><b id="sub">$0</b></div>
     <label class="sw"><input type="checkbox" id="svc" checked> 加收 10% 服務費 <b id="svcv"></b></label>
     <label class="sw"><input type="checkbox" id="d9"> 9 折優惠（服務費不折扣）<b id="d9v"></b></label>
+    <label class="sw"><input type="checkbox" id="dp"> 訂金 <select id="dpm"><option value="transfer">轉帳</option><option value="linepay">LINE Pay</option></select> <input type="number" id="dpv" inputmode="numeric" placeholder="金額"></label>
     <label class="sw"><input type="checkbox" id="cp"> 優惠券 <input type="number" id="cpv" inputmode="numeric" placeholder="金額"></label>
     <label class="sw"><input type="checkbox" id="bs"> 闆娘招待 <input type="number" id="bsv" inputmode="numeric" placeholder="金額"></label>
     <div class="tot" id="total">$0</div>
@@ -109,15 +111,16 @@ function calc(){
   var sub=cart.reduce(function(a,c){return a+c.p*c.q},0);
   var sf=$("svc").checked?Math.round(sub*0.1):0;
   var d9=$("d9").checked?-Math.round(sub*0.1):0;
+  var dp=$("dp").checked?-Math.abs(Number($("dpv").value)||0):0;
   var cp=$("cp").checked?-Math.abs(Number($("cpv").value)||0):0;
   var bs=$("bs").checked?-Math.abs(Number($("bsv").value)||0):0;
-  var t=Math.max(0,sub+sf+d9+cp+bs);
-  R={sub:sub,svc:sf,d9:d9,cp:cp,bs:bs,total:t};
+  var t=Math.max(0,sub+sf+d9+dp+cp+bs);
+  R={sub:sub,svc:sf,d9:d9,dp:dp,dpm:dp?$("dpm").value:"",cp:cp,bs:bs,total:t};
   $("sub").textContent=money(sub);
   $("svcv").textContent=sf?"+"+money(sf):"";
   $("d9v").textContent=d9?"-"+money(-d9):"";
   $("total").textContent=money(t)}
-function resetAdj(){$("d9").checked=false;$("cp").checked=false;$("bs").checked=false;$("cpv").value="";$("bsv").value=""}
+function resetAdj(){$("dp").checked=false;$("dpv").value="";$("d9").checked=false;$("cp").checked=false;$("bs").checked=false;$("cpv").value="";$("bsv").value=""}
 function rc(){
   var h="",t=0;
   cart.forEach(function(c,i){t+=c.p*c.q;h+='<div class="ln"><span>'+esc(c.n)+' × '+c.q+'</span><span>'+money(c.p*c.q)+' <button data-i="'+i+'">刪</button></span></div>'});
@@ -125,8 +128,8 @@ function rc(){
   document.querySelectorAll("#cart button").forEach(function(b){b.onclick=function(){cart.splice(b.dataset.i,1);rc()}})}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 $("clear").onclick=function(){cart=[];resetAdj();rc()};
-["svc","d9","cp","bs"].forEach(function(i){$(i).onchange=calc});
-["cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$(i.slice(0,2)).checked=true;calc()}});
+["svc","d9","dp","cp","bs"].forEach(function(i){$(i).onchange=calc});$("dpm").onchange=calc;
+["dpv","cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$(i.slice(0,2)).checked=true;calc()}});
 calc();
 function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function uid(){return "S"+Date.now()+Math.floor(Math.random()*900+100)}
@@ -154,17 +157,24 @@ function renderLog(){
   fetch("/api/pos/sales?from="+d+"&to="+d).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(db){draw_(d,db,true)}).catch(function(){draw_(d,[],false)})}
 function draw_(d,db,ok){
   var ids={};db.forEach(function(x){ids[x.id]=1});
-  var loc=pend().filter(function(x){return !ids[x.id]&&twd(x.at).slice(0,10)===d}).map(function(x){var a=x.adj||{};return{id:x.id,date:d,time:twd(x.at).slice(11,16),items:x.items,sub:a.sub||0,svc:a.svc||0,d9:a.d9||0,cp:a.cp||0,bs:a.bs||0,total:x.total,pay:x.pay,unsynced:1}});
+  var loc=pend().filter(function(x){return !ids[x.id]&&twd(x.at).slice(0,10)===d}).map(function(x){var a=x.adj||{};return{id:x.id,date:d,time:twd(x.at).slice(11,16),items:x.items,sub:a.sub||0,svc:a.svc||0,d9:a.d9||0,dp:a.dp||0,dpm:a.dpm||"",cp:a.cp||0,bs:a.bs||0,total:x.total,pay:x.pay,unsynced:1}});
   var rows=db.concat(loc).sort(function(a,b){return a.time<b.time?1:-1});LAST=rows;
   $("sum").textContent=money(rows.reduce(function(a,x){return a+x.total},0));
   $("scnt").textContent="共 "+rows.length+" 筆";
   $("pnote").textContent=(ok?"":"目前無法連線，僅顯示本機暫存。")+(loc.length?loc.length+" 筆尚未同步，連線後會自動補傳。":"");
-  $("sales").innerHTML=rows.map(function(x){return '<div class="ln"><span>'+x.time+' '+esc(x.pay)+(x.unsynced?' <b style="color:#c0392b">（未同步）</b>':'')+'<br><span class="note">'+x.items.map(function(c){return esc(c.n)+'×'+c.q}).join("、")+'</span></span><b>'+money(x.total)+'</b></div>'}).join("")||'<div class="note">當天沒有銷售</div>'}
+  var dl=0,dt=0;rows.forEach(function(x){if(x.dp){if(x.dpm==="linepay")dl+=-x.dp;else dt+=-x.dp}});
+  $("scnt").textContent="共 "+rows.length+" 筆"+(dl||dt?"｜訂金扣抵：LINE Pay "+money(dl)+"、轉帳 "+money(dt):"");
+  $("sales").innerHTML=rows.map(function(x,i){return '<div class="ln"><span>'+x.time+' '+esc(x.pay)+(x.unsynced?' <b style="color:#c0392b">（未同步）</b>':'')+'<br><span class="note">'+x.items.map(function(c){return esc(c.n)+'×'+c.q}).join("、")+(x.dp?'<br>訂金扣抵 -'+money(-x.dp)+'（'+esc(DMN[x.dpm]||"未標示")+'）':'')+'</span></span><span><b>'+money(x.total)+'</b> <button data-d="'+i+'">刪</button></span></div>'}).join("")||'<div class="note">當天沒有銷售</div>';
+  document.querySelectorAll("#sales [data-d]").forEach(function(b){b.onclick=function(){delSale(LAST[b.dataset.d])}})}
+function delSale(x){
+  if(!x||!confirm("確定要刪除這筆銷售嗎？\n"+x.time+" "+x.pay+" "+money(x.total)+"\n刪除後無法復原。"))return;
+  if(x.unsynced){sv("pend",pend().filter(function(y){return y.id!==x.id}));renderLog();return}
+  fetch("/api/pos/sales/"+x.id,{method:"DELETE"}).then(function(r){if(!r.ok)throw 0;renderLog()}).catch(function(){alert("刪除失敗，請檢查網路後再試")})}
 $("sd").value=today();$("sd").onchange=renderLog;
 $("exp").onclick=function(){
   var q=function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'};
-  var rows=["日期,時間,付款,品項,小計,服務費,9折,優惠券,招待,應收"];
-  LAST.forEach(function(x){rows.push([x.date,x.time,x.pay,x.items.map(function(c){return c.n+"x"+c.q}).join(" / "),x.sub,x.svc,x.d9,x.cp,x.bs,x.total].map(q).join(","))});
+  var rows=["日期,時間,付款,品項,小計,服務費,9折,訂金扣抵,訂金方式,優惠券,招待,應收"];
+  LAST.forEach(function(x){rows.push([x.date,x.time,x.pay,x.items.map(function(c){return c.n+"x"+c.q}).join(" / "),x.sub,x.svc,x.d9,x.dp||0,(x.dp?(DMN[x.dpm]||"未標示"):""),x.cp,x.bs,x.total].map(q).join(","))});
   var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\ufeff"+encodeURIComponent(rows.join("\n"));a.download="sales-"+($("sd").value||today())+".csv";a.click()};
 
 // ---- 今日訂位（讀取後台資料）----
@@ -172,6 +182,7 @@ var RES=[];
 function dep(x){return x.amount==null?x.people*1000:x.amount}
 function dm(x){return x.depMethod||(x.transactionId?"linepay":"transfer")}
 var DMN={linepay:"LINE Pay",transfer:"轉帳"};
+function pkgText(x){var k=String(x.pkg||"");if(!k)return"";if(k.indexOf("2,000")>=0||k.indexOf("1,880")>=0)return k;return k+"｜每位 $"+(Math.round((Number(x.price)||0)/(x.people||1)*100)/100).toLocaleString()}
 var RST={paid:"已付訂金",pending:"待付訂金"};
 function loadRes(){
   $("rsum").textContent="讀取中…";
@@ -190,7 +201,7 @@ function drawRes(){
     var h=mk("div");h.appendChild(mk("b",x.time+"　"+x.name+"　"+x.people+"位"));
     h.appendChild(mk("span"," "+(RST[x.status]||x.status),"margin-left:6px;padding:1px 8px;border-radius:99px;font-size:13px;color:#fff;background:"+(x.status==="paid"?"#06a050":"#c98a00")));c.appendChild(h);
     var p=mk("div","電話：");var a=mk("a",x.phone);a.href="tel:"+String(x.phone).replace(/[^\d+]/g,"");a.style.color="var(--acc)";p.appendChild(a);c.appendChild(p);
-    c.appendChild(mk("div",(x.pkg||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(dep(x)).toLocaleString()+(x.status==="paid"?" 已付（"+DMN[dm(x)]+"）":" 未付")));
+    c.appendChild(mk("div",(pkgText(x)||"套餐未填")+"｜價格 $"+Number(x.price||0).toLocaleString()+"（不含 10%）｜訂金 $"+(dep(x)).toLocaleString()+(x.status==="paid"?" 已付（"+DMN[dm(x)]+"）":" 未付")));
     var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
     if(nt)c.appendChild(mk("div",nt,"color:var(--mute);font-size:14px"));
     var b=mk("button","帶入結帳");b.className="btn ghost";b.style.marginTop="6px";
@@ -198,7 +209,12 @@ function drawRes(){
     if(x.status!=="paid"){["transfer","linepay"].forEach(function(m){
       var q=mk("button","收訂金・"+DMN[m]);q.className="btn ghost";q.style.cssText="margin-top:6px;margin-left:6px;width:auto;padding:12px 14px";
       q.onclick=function(){collect(x,m)};c.appendChild(q)})}
+    var dl=mk("button","刪除");dl.className="btn ghost";dl.style.cssText="margin-top:6px;margin-left:6px;width:auto;padding:12px 14px;color:#c0392b;border-color:#c0392b";
+    dl.onclick=function(){delRes(x)};c.appendChild(dl);
     l.appendChild(c)})}
+function delRes(x){
+  if(!confirm("確定要刪除這筆訂位嗎？\n"+x.time+" "+x.name+" "+x.people+"位\n刪除後無法復原（如果只是客人取消，建議到後台改成「已取消」）。"))return;
+  fetch("/api/admin/reservations/"+x.id,{method:"DELETE"}).then(function(r){if(!r.ok)throw 0;loadRes()}).catch(function(){alert("刪除失敗，請檢查網路後再試")})}
 function collect(x,m){
   if(!confirm("確認已收到 "+x.name+" 的訂金 $"+dep(x).toLocaleString()+"？\n付款方式：「"+DMN[m]+"」"))return;
   fetch("/api/admin/reservations/"+x.id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"paid",depMethod:m})})
@@ -209,7 +225,7 @@ function toCart(x){
   else if(k.indexOf("1,880")>=0)cart.push({n:"山海旬味・經典懷石",p:1880,q:x.people});
   else cart.push({n:"沐藏客製化預定（"+x.name+"）",p:Number(x.price)||0,q:1});
   rc();show(1);
-  if(x.status==="paid")alert(x.name+" 已付訂金 $"+(dep(x)).toLocaleString()+"，結帳時可在「優惠券」欄輸入金額扣除。")}
+  if(x.status==="paid"){$("dp").checked=true;$("dpv").value=dep(x);$("dpm").value=dm(x);calc();alert("已帶入訂金扣抵 $"+dep(x).toLocaleString()+"（"+DMN[dm(x)]+"）")}}
 $("rref").onclick=loadRes;
 </script>
 </body>
