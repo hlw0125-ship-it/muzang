@@ -276,8 +276,9 @@ app.post('/api/pos/sales', auth, wrap(async (req, res) => {
   const sub = items.reduce((x, i) => x + i.p * i.q, 0);
   const sale = { id: String(b.id || 'S' + Date.now() + crypto.randomInt(100, 999)).replace(/[^\w-]/g, '').slice(0, 40),
     at: at.toISOString(), date: loc.slice(0, 10), time: loc.slice(11, 16), items, sub,
-    svc: n0(a.svc), d9: Math.min(0, n0(a.d9)), cp: Math.min(0, n0(a.cp)), bs: Math.min(0, n0(a.bs)), pay: String(b.pay || '').slice(0, 20) };
-  sale.total = Math.max(0, sub + sale.svc + sale.d9 + sale.cp + sale.bs);
+    svc: n0(a.svc), d9: Math.min(0, n0(a.d9)), dp: Math.min(0, n0(a.dp)), dpm: ['linepay', 'transfer'].includes(a.dpm) ? a.dpm : '', cp: Math.min(0, n0(a.cp)), bs: Math.min(0, n0(a.bs)), pay: String(b.pay || '').slice(0, 20) };
+  sale.total = Math.max(0, sub + sale.svc + sale.d9 + sale.dp + sale.cp + sale.bs);
+  if (!sale.dp) sale.dpm = '';
   await pool.query('insert into sales (id, data) values ($1, $2) on conflict (id) do nothing', [sale.id, sale]);
   res.json({ ok: true, id: sale.id });
 }));
