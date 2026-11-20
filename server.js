@@ -168,7 +168,7 @@ app.get('/linepay/confirm', async (req, res) => {
   try {
     const out = await linepay(`/v3/payments/${transactionId}/confirm`, { amount: r.amount, currency: 'TWD' });
     if (out.returnCode === '0000') {
-      await update(r.id, x => { x.status = 'paid'; x.paidAt = new Date().toISOString(); });
+      await update(r.id, x => { x.status = 'paid'; x.paidAt = new Date().toISOString(); x.depMethod = 'linepay'; });
       return res.redirect('/result?s=ok&o=' + r.id + '&k=' + r.token);
     }
     console.error('LINE Pay confirm failed', out.returnCode, out.returnMessage);
@@ -206,14 +206,15 @@ app.get('/result', wrap(async (req, res) => {
 }));
 
 // ---- 後台 API ----
-const FIELDS = ['name', 'phone', 'date', 'time', 'people', 'price', 'note', 'allergy', 'purpose', 'pkg', 'status', 'paidAt', 'handler', 'contactDate', 'source'];
+const FIELDS = ['name', 'phone', 'date', 'time', 'people', 'price', 'note', 'allergy', 'purpose', 'pkg', 'status', 'paidAt', 'handler', 'contactDate', 'source', 'depMethod'];
 function applyFields(r, b) {
   FIELDS.forEach(k => { if (b[k] !== undefined) r[k] = b[k]; });
   ['name', 'phone', 'date', 'time', 'note', 'allergy', 'purpose', 'pkg', 'paidAt', 'handler', 'contactDate', 'source'].forEach(k => { r[k] = String(r[k] || '').slice(0, 300); });
   r.people = Math.round(Number(r.people)); r.price = Math.max(0, Number(r.price) || 0);
   const ba = b.amount;  // 訂金可自訂；沒填才用「人數 × 每位訂金」
   if (ba !== undefined && ba !== null && ba !== '' && Number.isFinite(Number(ba))) r.amount = Math.max(0, Math.round(Number(ba)));
-  else if (!(Number(r.amount) > 0)) r.amount = (r.people || 0) * DEPOSIT;
+  else if (r.amount == null) r.amount = (r.people || 0) * DEPOSIT;
+  r.depMethod = ['linepay', 'transfer'].includes(r.depMethod) ? r.depMethod : '';
 }
 function adminCheck(r, list, force) {
   if (!r.name) return [400, '請填寫訂位人'];
@@ -234,9 +235,10 @@ app.get('/api/admin/reservations', auth, wrap(async (req, res) => {
 app.post('/api/admin/reservations', auth, wrap(async (req, res) => {
   const b = req.body || {};
   const r = { id: 'MZ' + Date.now() + crypto.randomInt(100, 999), token: crypto.randomBytes(8).toString('hex'), created: new Date().toISOString(),
-    manual: true, status: 'pending', amount: 0, paidAt: '', handler: '', contactDate: tw(), source: '', pkg: '', purpose: '', allergy: '', note: '', price: 0 };
+    manual: true, status: 'pending', paidAt: '', handler: '', contactDate: tw(), source: '', pkg: '', purpose: '', allergy: '', note: '', price: 0 };
   applyFields(r, b);
   if (r.status === 'paid' && !r.paidAt) r.paidAt = new Date().toISOString();
+  if (r.status === 'paid' && !r.depMethod) r.depMethod = r.transactionId ? 'linepay' : 'transfer';
   const out = await tx(async c => {
     const e = adminCheck(r, await load(c), b.force); if (e) return e;
     await put(r, c); return null;
@@ -252,6 +254,7 @@ app.put('/api/admin/reservations/:id', auth, wrap(async (req, res) => {
     const was = r.status;
     applyFields(r, b);
     if (r.status === 'paid' && !r.paidAt) r.paidAt = new Date().toISOString();
+    if (r.status === 'paid' && !r.depMethod) r.depMethod = r.transactionId ? 'linepay' : 'transfer';
     if (['pending', 'paid'].includes(r.status) && was === 'inquiry') r.manual = true;
     const e = adminCheck(r, list, b.force); if (e) return e;
     await put(r, c); return r;
