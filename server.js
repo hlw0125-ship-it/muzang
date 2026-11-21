@@ -78,15 +78,58 @@ async function linepay(uri, body) {
   return JSON.parse(text.replace(/"transactionId"\s*:\s*(\d+)/g, '"transactionId":"$1"'));
 }
 
-// ---- 管理員驗證 ----
+// ---- 管理員驗證：登入頁 + 30 天 Cookie（相容舊的 Basic Auth）----
+// 加到 iPhone 主畫面（網頁 App 模式）時不會跳出 Basic Auth 視窗，所以改用登入頁
+const SESSION_KEY = crypto.createHash('sha256').update('muzang-session:' + (process.env.SESSION_SECRET || ADMIN_PASSWORD || '')).digest();
+const SESSION_DAYS = 30;
+const hmac = v => crypto.createHmac('sha256', SESSION_KEY).update(v).digest('hex');
+const sameStr = (a, b) => { const x = crypto.createHash('sha256').update(String(a)).digest(), y = crypto.createHash('sha256').update(String(b)).digest(); return crypto.timingSafeEqual(x, y); };
+function validSession(req) {
+  const m = (req.headers.cookie || '').match(/(?:^|;\s*)mz=([^;]+)/);
+  if (!m) return false;
+  const [exp, sig] = decodeURIComponent(m[1]).split('.');
+  return !!exp && !!sig && Number(exp) > Date.now() && sameStr(sig, hmac(exp));
+}
 function auth(req, res, next) {
   if (!ADMIN_PASSWORD) return res.status(503).send('尚未設定 ADMIN_PASSWORD');
+  if (validSession(req)) return next();
   const h = req.headers.authorization || '';
-  const pw = h.startsWith('Basic ') ? Buffer.from(h.slice(6), 'base64').toString().split(':').slice(1).join(':') : '';
-  const a = crypto.createHash('sha256').update(pw).digest(), b = crypto.createHash('sha256').update(ADMIN_PASSWORD).digest();
-  if (crypto.timingSafeEqual(a, b)) return next();
-  res.set('WWW-Authenticate', 'Basic realm="muzang"').status(401).send('需要登入');
+  if (h.startsWith('Basic ')) {
+    const pw = Buffer.from(h.slice(6), 'base64').toString().split(':').slice(1).join(':');
+    if (sameStr(pw, ADMIN_PASSWORD)) return next();
+  }
+  if (req.method === 'GET' && !req.path.startsWith('/api/')) return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+  res.status(401).json({ error: '請重新登入' });
 }
+const tries = new Map(); // 簡單的登入失敗次數限制
+function loginPage(next, msg) {
+  const n = String(next || '/admin').replace(/"/g, '&quot;');
+  return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>沐藏料理所 登入</title>
+<style>body{font-family:system-ui,-apple-system,"PingFang TC",sans-serif;background:#f6f2ea;color:#2a2420;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:20px;box-sizing:border-box}
+@media(prefers-color-scheme:dark){body{background:#1c1816;color:#f1e9de}input{background:#26211e!important;color:#f1e9de!important;border-color:#3a332e!important}}
+form{width:100%;max-width:340px}h1{font-size:20px;letter-spacing:.15em;text-align:center}input{width:100%;padding:14px;font-size:16px;border:1px solid #e3dccf;border-radius:10px;box-sizing:border-box;background:#fff}
+button{width:100%;padding:14px;font-size:17px;border:0;border-radius:10px;background:#8a3b2a;color:#fff;margin-top:12px}.e{color:#c0392b;text-align:center;min-height:1.5em}</style></head>
+<body><form method="post" action="/login"><h1>沐藏料理所</h1><div class="e">${msg || ''}</div>
+<input type="hidden" name="next" value="${n}"><input type="password" name="password" placeholder="請輸入密碼" autocomplete="current-password" autofocus><button type="submit">登入</button></form></body></html>`;
+}
+app.get('/login', (req, res) => res.send(loginPage(req.query.next, '')));
+app.post('/login', express.urlencoded({ extended: false }), (req, res) => {
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  const t = tries.get(ip) || { n: 0, at: Date.now() };
+  if (Date.now() - t.at > 10 * 60e3) { t.n = 0; t.at = Date.now(); }
+  const next = typeof req.body.next === 'string' && /^\/(?!\/)/.test(req.body.next) ? req.body.next : '/admin';
+  if (t.n >= 10) return res.status(429).send(loginPage(next, '嘗試次數過多，請 10 分鐘後再試'));
+  if (!ADMIN_PASSWORD || !sameStr(req.body.password || '', ADMIN_PASSWORD)) {
+    t.n++; tries.set(ip, t);
+    return res.status(401).send(loginPage(next, '密碼錯誤'));
+  }
+  tries.delete(ip);
+  const exp = String(Date.now() + SESSION_DAYS * 864e5);
+  const secure = String(BASE_URL || '').startsWith('https') ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `mz=${encodeURIComponent(exp + '.' + hmac(exp))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_DAYS * 86400}${secure}`);
+  res.redirect(next);
+});
+app.get('/logout', (req, res) => { res.setHeader('Set-Cookie', 'mz=; Path=/; HttpOnly; Max-Age=0'); res.redirect('/login'); });
 
 const page = f => (req, res) => res.sendFile(path.join(__dirname, f));
 app.get('/', page('index.html'));
