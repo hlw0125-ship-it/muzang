@@ -58,7 +58,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <div class="ln"><span>小計</span><b id="sub">$0</b></div>
     <label class="sw"><input type="checkbox" id="svc" checked> 加收 10% 服務費 <b id="svcv"></b></label>
     <label class="sw"><input type="checkbox" id="d9"> 9 折優惠（服務費不折扣）<b id="d9v"></b></label>
-    <label class="sw"><input type="checkbox" id="dp"> 訂金 <select id="dpm"><option value="transfer">轉帳</option><option value="linepay">LINE Pay</option></select> <input type="number" id="dpv" inputmode="numeric" placeholder="金額"></label>
+    <label class="sw"><input type="checkbox" id="dpc"> 訂金 <select id="dpm"><option value="transfer">轉帳</option><option value="linepay">LINE Pay</option></select> <input type="number" id="dpv" inputmode="numeric" placeholder="金額"></label>
     <label class="sw"><input type="checkbox" id="cp"> 優惠券 <input type="number" id="cpv" inputmode="numeric" placeholder="金額"></label>
     <label class="sw"><input type="checkbox" id="bs"> 闆娘招待 <input type="number" id="bsv" inputmode="numeric" placeholder="金額"></label>
     <div class="tot" id="total">$0</div>
@@ -78,6 +78,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <div class="card"><b>今日訂位</b><div class="note" id="rsum" style="margin:6px 0"></div>
     <button class="btn ghost" id="rref" style="margin:0 0 8px">重新整理</button><div id="rlist"></div></div>
 </section>
+
+<div class="note" style="text-align:center;margin:18px 0 8px">POS 版本 2026-11-22（已修正加入按鈕與改價）</div>
 
 <dialog id="dlg">
   <b id="dn"></b>
@@ -111,7 +113,7 @@ function calc(){
   var sub=cart.reduce(function(a,c){return a+c.p*c.q},0);
   var sf=$("svc").checked?Math.round(sub*0.1):0;
   var d9=$("d9").checked?-Math.round(sub*0.1):0;
-  var dp=$("dp").checked?-Math.abs(Number($("dpv").value)||0):0;
+  var dp=$("dpc").checked?-Math.abs(Number($("dpv").value)||0):0;
   var cp=$("cp").checked?-Math.abs(Number($("cpv").value)||0):0;
   var bs=$("bs").checked?-Math.abs(Number($("bsv").value)||0):0;
   var t=Math.max(0,sub+sf+d9+dp+cp+bs);
@@ -120,7 +122,7 @@ function calc(){
   $("svcv").textContent=sf?"+"+money(sf):"";
   $("d9v").textContent=d9?"-"+money(-d9):"";
   $("total").textContent=money(t)}
-function resetAdj(){$("dp").checked=false;$("dpv").value="";$("d9").checked=false;$("cp").checked=false;$("bs").checked=false;$("cpv").value="";$("bsv").value=""}
+function resetAdj(){$("dpc").checked=false;$("dpv").value="";$("d9").checked=false;$("cp").checked=false;$("bs").checked=false;$("cpv").value="";$("bsv").value=""}
 function rc(){
   var h="",t=0;
   cart.forEach(function(c,i){t+=c.p*c.q;h+='<div class="ln"><span>'+esc(c.n)+' × '+c.q+'</span><span>'+money(c.p*c.q)+' <button data-i="'+i+'">刪</button></span></div>'});
@@ -128,8 +130,8 @@ function rc(){
   document.querySelectorAll("#cart button").forEach(function(b){b.onclick=function(){cart.splice(b.dataset.i,1);rc()}})}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 $("clear").onclick=function(){cart=[];resetAdj();rc()};
-["svc","d9","dp","cp","bs"].forEach(function(i){$(i).onchange=calc});$("dpm").onchange=calc;
-["dpv","cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$(i.slice(0,2)).checked=true;calc()}});
+["svc","d9","dpc","cp","bs"].forEach(function(i){$(i).onchange=calc});$("dpm").onchange=calc;
+["dpv","cpv","bsv"].forEach(function(i){$(i).oninput=function(){if($(i).value!=="")$({dpv:"dpc",cpv:"cp",bsv:"bs"}[i]).checked=true;calc()}});
 calc();
 function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function uid(){return "S"+Date.now()+Math.floor(Math.random()*900+100)}
@@ -225,7 +227,7 @@ function toCart(x){
   else if(k.indexOf("1,880")>=0)cart.push({n:"山海旬味・經典懷石",p:1880,q:x.people});
   else cart.push({n:"沐藏客製化預定（"+x.name+"）",p:Number(x.price)||0,q:1});
   rc();show(1);
-  if(x.status==="paid"){$("dp").checked=true;$("dpv").value=dep(x);$("dpm").value=dm(x);calc();alert("已帶入訂金扣抵 $"+dep(x).toLocaleString()+"（"+DMN[dm(x)]+"）")}}
+  if(x.status==="paid"){$("dpc").checked=true;$("dpv").value=dep(x);$("dpm").value=dm(x);calc();alert("已帶入訂金扣抵 $"+dep(x).toLocaleString()+"（"+DMN[dm(x)]+"）")}}
 $("rref").onclick=loadRes;
 </script>
 </body>
