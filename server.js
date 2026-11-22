@@ -131,7 +131,8 @@ app.post('/login', express.urlencoded({ extended: false }), (req, res) => {
 });
 app.get('/logout', (req, res) => { res.setHeader('Set-Cookie', 'mz=; Path=/; HttpOnly; Max-Age=0'); res.redirect('/login'); });
 
-const page = f => (req, res) => res.sendFile(path.join(__dirname, f));
+// 網頁不快取，避免平板或主畫面圖示一直用舊版
+const page = f => (req, res) => { res.set('Cache-Control', 'no-cache, no-store, must-revalidate'); res.sendFile(path.join(__dirname, f)); };
 app.get('/', page('index.html'));
 app.get('/pos.html', auth, page('pos.html'));
 app.get('/admin', auth, page('admin.html'));
