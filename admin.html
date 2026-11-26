@@ -16,6 +16,7 @@ button{padding:10px 14px;border:1px solid var(--acc);background:none;color:var(-
 button.p{background:var(--acc);color:#fff}
 .sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.sum div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
 dialog{border:1px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);width:min(94vw,480px);max-height:92vh;overflow:auto}
+.lnk{display:block;text-align:center;padding:14px;border-radius:10px;background:#06a050;color:#fff!important;text-decoration:none;font-size:17px}
 dialog::backdrop{background:rgba(0,0,0,.5)}label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}
 .r2{display:flex;gap:8px}.r2>div{flex:1;min-width:0}
 .r2 input,.r2 select{min-width:0;width:100%;max-width:100%}
@@ -35,6 +36,11 @@ input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and
 <div class="m" id="stat" style="margin:4px 0 8px"></div>
 <div class="sum" id="sum"></div>
 <div id="l"></div>
+
+<dialog id="ndlg"><b id="nt">訂位已儲存</b>
+<div class="m" id="nm" style="white-space:pre-wrap;margin:10px 0;line-height:1.6"></div>
+<a id="nlink" class="lnk" target="_blank" rel="noopener">傳送到官方 LINE 通知</a>
+<button id="nskip" style="width:100%;margin-top:10px">略過</button></dialog>
 
 <dialog id="dlg"><form method="dialog" id="fm" onsubmit="return false">
 <b id="dt">訂位</b>
@@ -89,10 +95,26 @@ function draw(){
     var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note&&"備註："+x.note].filter(Boolean).join("｜");
     if(nt)d.append(T("div",nt,"m"));
     d.append(T("div","接洽："+(x.handler||"—")+"｜"+(x.contactDate||"—")+"｜來源："+(x.source||"—")+"｜"+x.id,"m"));
-    var b=T("button","編輯");b.onclick=function(){open_(x)};b.style.marginTop="6px";var dl=T("button","刪除");dl.onclick=function(){del_(x)};dl.style.cssText="margin:6px 0 0 8px;color:#c0392b;border-color:#c0392b";d.append(b,dl);l.append(d)})}
+    var b=T("button","編輯");b.onclick=function(){open_(x)};b.style.marginTop="6px";var dl=T("button","刪除");dl.onclick=function(){del_(x)};dl.style.cssText="margin:6px 0 0 8px;color:#c0392b;border-color:#c0392b";var nb=T("button","傳到LINE");nb.style.cssText="margin:6px 0 0 8px";nb.onclick=function(){notify_(x,"訂位通知")};d.append(b,nb,dl);l.append(d)})}
 function del_(x){
   if(!confirm("確定要永久刪除這筆訂位嗎？\n"+x.date+" "+x.time+"　"+x.name+"　"+x.people+"位\n\n刪除後無法復原。如果只是客人取消，建議到「編輯」把狀態改成「已取消」，會保留紀錄並釋出席次。"))return;
   fetch("/api/admin/reservations/"+x.id,{method:"DELETE"}).then(function(r){return r.json()}).then(function(){load()}).catch(function(){alert("刪除失敗，請稍後再試")})}
+var OA_ID="@371oexcl";
+function notifyText(x,title){
+  var dpst=x.status==="paid"?"已付（"+(dm(x)==="linepay"?"LINE Pay":"轉帳")+"）":(x.status==="pending"?"待付":(ST[x.status]||x.status));
+  var nt=[x.allergy&&"忌口："+x.allergy,x.purpose&&"目的："+x.purpose,x.note].filter(Boolean).join("；");
+  return["【沐藏料理所 後台通知】"+title,"訂位人："+x.name,"電話："+x.phone,"日期："+x.date+" "+x.time,"人數："+x.people+"位",
+    "套餐："+(pkgText(x)||"未填")+"｜價格 $"+Number(x.price||0).toLocaleString(),"訂金：$"+dep(x).toLocaleString()+"（"+dpst+"）",
+    "備註："+(nt||"無"),"接洽："+(x.handler||"—")+"｜來源："+(x.source||"—"),"編號："+x.id].join("\n")}
+function notify_(x,title){
+  if(!x||!x.id)return;
+  var msg=notifyText(x,title);
+  $("nt").textContent=title+"：請傳到官方 LINE 通知";
+  $("nm").textContent=msg;
+  $("nlink").href="https://line.me/R/oaMessage/"+encodeURIComponent(OA_ID)+"/?"+encodeURIComponent(msg);
+  $("ndlg").showModal()}
+$("nskip").onclick=function(){$("ndlg").close()};
+$("nlink").onclick=function(){setTimeout(function(){$("ndlg").close()},400)};
 function csv(){
   var q=function(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"'};
   var rows=[["日期","時間","訂位人","電話","人數","價格","套餐","備註","訂金狀態","支付日期","訂金付款方式","接洽服務人員","接洽日期","接洽來源","編號"].map(q).join(",")];
@@ -138,7 +160,7 @@ function send(force){
   .then(function(r){return r.json().then(function(j){return[r.status,j]})}).then(function(p){
     if(p[0]===409){if(confirm(p[1].error))send(true);return}
     if(p[0]!==200){alert(p[1].error||"儲存失敗");return}
-    $("dlg").close();load()})}
+    var wasNew=!cur;$("dlg").close();load();notify_(p[1],wasNew?"新增訂位":"更新訂位")})}
 $("ok").onclick=function(){send(false)};$("cx").onclick=function(){$("dlg").close()};
 $("add").onclick=function(){open_(null)};
 ["fd","ft"].forEach(function(i){$(i).onchange=function(){draw();slots()}});
